@@ -1,0 +1,893 @@
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,450;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap');
+
+#budget-root {
+  --bg: #f6f3ec;
+  --paper: #fffdf8;
+  --ink: #201e1a;
+  --ink-soft: #6b6558;
+  --rule: #e3ddcc;
+  --rule-strong: #cfc7ae;
+  --johanna: #b5495b;
+  --johanna-soft: #f3dfe1;
+  --patrik: #2f5d62;
+  --patrik-soft: #dde8e6;
+  --gold: #b8872b;
+  --radius: 10px;
+  --shadow: 0 1px 2px rgba(32,30,26,0.06), 0 6px 20px rgba(32,30,26,0.05);
+  font-family: 'Inter', -apple-system, sans-serif;
+  color: var(--ink);
+  background: var(--bg);
+  min-height: 100%;
+  padding: 0;
+  -webkit-font-smoothing: antialiased;
+}
+#budget-root * { box-sizing: border-box; }
+#budget-root .mono { font-family: 'IBM Plex Mono', monospace; font-variant-numeric: tabular-nums; }
+
+#budget-root .wrap {
+  max-width: 780px;
+  margin: 0 auto;
+  padding: 28px 20px 60px;
+}
+
+/* Header */
+#budget-root .brand {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-bottom: 4px;
+}
+#budget-root .brand-mark {
+  font-family: 'Fraunces', serif;
+  font-size: 26px;
+  font-weight: 700;
+  color: var(--gold);
+  line-height: 1;
+}
+#budget-root h1 {
+  font-family: 'Fraunces', serif;
+  font-weight: 600;
+  font-size: 26px;
+  margin: 0;
+  letter-spacing: -0.01em;
+}
+#budget-root .subtitle {
+  color: var(--ink-soft);
+  font-size: 13.5px;
+  margin: 0 0 22px;
+}
+
+#budget-root .top-controls {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 18px;
+}
+#budget-root .segmented {
+  display: inline-flex;
+  background: var(--paper);
+  border: 1px solid var(--rule-strong);
+  border-radius: 8px;
+  padding: 3px;
+  gap: 2px;
+}
+#budget-root .segmented button {
+  border: none;
+  background: transparent;
+  font-family: 'Inter', sans-serif;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--ink-soft);
+  padding: 6px 13px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background .15s, color .15s;
+}
+#budget-root .segmented button.active {
+  background: var(--ink);
+  color: var(--paper);
+}
+#budget-root .segmented button:hover:not(.active) { color: var(--ink); }
+
+/* Month pills */
+#budget-root .month-tabs {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding-bottom: 6px;
+  margin-bottom: 18px;
+  scrollbar-width: thin;
+}
+#budget-root .month-tabs::-webkit-scrollbar { height: 5px; }
+#budget-root .month-tabs::-webkit-scrollbar-thumb { background: var(--rule-strong); border-radius: 4px; }
+#budget-root .month-pill {
+  flex: 0 0 auto;
+  border: 1px solid var(--rule-strong);
+  background: var(--paper);
+  color: var(--ink-soft);
+  font-family: 'Inter', sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 7px 13px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: all .15s;
+  white-space: nowrap;
+}
+#budget-root .month-pill.active {
+  background: var(--ink);
+  border-color: var(--ink);
+  color: var(--paper);
+}
+#budget-root .month-pill:hover:not(.active) { border-color: var(--ink); color: var(--ink); }
+
+/* Ledger card */
+#budget-root .card {
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+  margin-bottom: 18px;
+}
+#budget-root .ledger-head {
+  display: grid;
+  grid-template-columns: 1fr 108px 108px 34px;
+  gap: 8px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--rule);
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+#budget-root .ledger-head .col-j { color: var(--johanna); text-align: right; }
+#budget-root .ledger-head .col-p { color: var(--patrik); text-align: right; }
+
+#budget-root .ledger-row {
+  display: grid;
+  grid-template-columns: 1fr 108px 108px 34px;
+  gap: 8px;
+  align-items: center;
+  padding: 9px 16px;
+  border-bottom: 1px solid var(--rule);
+}
+#budget-root .ledger-row:last-child { border-bottom: none; }
+#budget-root .ledger-row .cat-name {
+  font-size: 14.5px;
+  font-weight: 500;
+}
+#budget-root .ledger-row input.cat-input {
+  border: none;
+  background: transparent;
+  font-family: 'Inter', sans-serif;
+  font-size: 14.5px;
+  font-weight: 500;
+  width: 100%;
+  padding: 4px 0;
+  color: var(--ink);
+  border-bottom: 1px dashed var(--rule-strong);
+}
+#budget-root .ledger-row input.cat-input:focus { outline: none; border-bottom-color: var(--gold); }
+#budget-root .ledger-row input.cat-input::placeholder { color: #b7ae98; font-weight: 400; }
+
+#budget-root .amount-input {
+  width: 100%;
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  padding: 6px 8px;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 13.5px;
+  text-align: right;
+  background: #fff;
+  color: var(--ink);
+  transition: border-color .15s, box-shadow .15s;
+}
+#budget-root .amount-input:focus {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(184,135,43,0.25);
+}
+#budget-root .amount-input.j-input { border-color: var(--johanna-soft); }
+#budget-root .amount-input.j-input:focus { border-color: var(--johanna); }
+#budget-root .amount-input.p-input { border-color: var(--patrik-soft); }
+#budget-root .amount-input.p-input:focus { border-color: var(--patrik); }
+
+#budget-root .row-del {
+  border: none;
+  background: transparent;
+  color: #bfb6a0;
+  font-size: 17px;
+  cursor: pointer;
+  line-height: 1;
+  padding: 4px;
+  border-radius: 5px;
+}
+#budget-root .row-del:hover { color: var(--johanna); background: var(--johanna-soft); }
+
+#budget-root .add-row-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  text-align: left;
+  padding: 12px 16px;
+  border: none;
+  background: transparent;
+  color: var(--gold);
+  font-family: 'Inter', sans-serif;
+  font-weight: 600;
+  font-size: 13.5px;
+  cursor: pointer;
+}
+#budget-root .add-row-btn:hover { background: #faf4e6; }
+
+/* Totals row inside ledger card */
+#budget-root .totals-row {
+  display: grid;
+  grid-template-columns: 1fr 108px 108px 34px;
+  gap: 8px;
+  padding: 12px 16px;
+  background: #faf7ef;
+  border-top: 1px solid var(--rule-strong);
+  font-weight: 700;
+  font-size: 14.5px;
+}
+#budget-root .totals-row .col-j { color: var(--johanna); text-align: right; }
+#budget-root .totals-row .col-p { color: var(--patrik); text-align: right; }
+
+/* Swish summary */
+#budget-root .swish-card {
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 22px 20px;
+  text-align: center;
+}
+#budget-root .swish-flow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  margin-bottom: 14px;
+}
+#budget-root .avatar {
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'Fraunces', serif;
+  font-weight: 700;
+  font-size: 17px;
+  color: #fff;
+  flex: 0 0 auto;
+  transition: transform .2s;
+}
+#budget-root .avatar.j { background: var(--johanna); }
+#budget-root .avatar.p { background: var(--patrik); }
+#budget-root .avatar.paying { transform: scale(1.08); box-shadow: 0 0 0 4px rgba(184,135,43,0.18); }
+
+#budget-root .arrow-track {
+  position: relative;
+  width: 130px;
+  height: 20px;
+  flex: 0 0 auto;
+}
+#budget-root .arrow-track svg { width: 100%; height: 100%; overflow: visible; }
+#budget-root .arrow-track path.line {
+  stroke: var(--rule-strong);
+  stroke-width: 2;
+  fill: none;
+}
+#budget-root .arrow-track path.line.active { stroke: var(--gold); }
+#budget-root .arrow-track polygon { fill: var(--rule-strong); }
+#budget-root .arrow-track polygon.active { fill: var(--gold); }
+#budget-root .flow-dot {
+  fill: var(--gold);
+  opacity: 0;
+}
+#budget-root .flow-dot.animate {
+  opacity: 1;
+  animation: flowmove 1.6s ease-in-out infinite;
+}
+#budget-root .arrow-track.rev .flow-dot.animate { animation-name: flowmove-rev; }
+@keyframes flowmove {
+  0% { transform: translateX(0); opacity: 0; }
+  15% { opacity: 1; }
+  85% { opacity: 1; }
+  100% { transform: translateX(110px); opacity: 0; }
+}
+@keyframes flowmove-rev {
+  0% { transform: translateX(110px); opacity: 0; }
+  15% { opacity: 1; }
+  85% { opacity: 1; }
+  100% { transform: translateX(0); opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  #budget-root .flow-dot.animate { animation: none; opacity: 1; }
+}
+
+#budget-root .swish-text {
+  font-family: 'Fraunces', serif;
+  font-size: 19px;
+  font-weight: 600;
+  margin: 0 0 3px;
+}
+#budget-root .swish-text .amt { color: var(--gold); }
+#budget-root .swish-sub {
+  color: var(--ink-soft);
+  font-size: 12.5px;
+  margin: 0;
+}
+#budget-root .swish-meta {
+  display: flex;
+  justify-content: center;
+  gap: 22px;
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--rule);
+  font-size: 12px;
+  color: var(--ink-soft);
+}
+#budget-root .swish-meta b { color: var(--ink); font-family: 'IBM Plex Mono', monospace; font-weight: 600; }
+
+/* Year overview */
+#budget-root .year-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13.5px;
+}
+#budget-root .year-table th {
+  text-align: right;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--ink-soft);
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--rule-strong);
+}
+#budget-root .year-table th:first-child, #budget-root .year-table td:first-child { text-align: left; }
+#budget-root .year-table td {
+  padding: 9px 14px;
+  border-bottom: 1px solid var(--rule);
+  text-align: right;
+}
+#budget-root .year-table td.month-cell { font-weight: 600; }
+#budget-root .year-table td.j { color: var(--johanna); font-family: 'IBM Plex Mono', monospace; }
+#budget-root .year-table td.p { color: var(--patrik); font-family: 'IBM Plex Mono', monospace; }
+#budget-root .year-table td.tot { font-family: 'IBM Plex Mono', monospace; font-weight: 600; }
+#budget-root .year-table td.swish-cell { font-size: 12px; color: var(--ink-soft); }
+#budget-root .year-table tr:hover td { background: #faf7ef; cursor: pointer; }
+#budget-root .year-table tfoot td {
+  font-weight: 700;
+  border-top: 2px solid var(--rule-strong);
+  border-bottom: none;
+  padding-top: 12px;
+  font-family: 'IBM Plex Mono', monospace;
+}
+#budget-root .year-table tfoot td.month-cell { font-family: 'Inter', sans-serif; }
+
+#budget-root .loading {
+  text-align: center;
+  color: var(--ink-soft);
+  font-size: 13.5px;
+  padding: 40px 0;
+}
+#budget-root .save-hint {
+  text-align: center;
+  font-size: 11.5px;
+  color: #b7ae98;
+  margin-top: 10px;
+  min-height: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+#budget-root .refresh-btn {
+  border: none;
+  background: transparent;
+  color: var(--gold);
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 2px 6px;
+}
+#budget-root .refresh-btn:hover { text-decoration: underline; }
+#budget-root .setup-banner {
+  background: #fbf1de;
+  border: 1px solid #e6cf9a;
+  color: #6b4f16;
+  border-radius: 8px;
+  padding: 14px 16px;
+  font-size: 13px;
+  line-height: 1.5;
+  margin-bottom: 18px;
+}
+#budget-root .setup-banner b { display: block; margin-bottom: 4px; }
+#budget-root .setup-banner code {
+  background: #f3e4c3;
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 12px;
+}
+#budget-root .error-banner {
+  background: #fbe3e3;
+  border: 1px solid #e6a9a9;
+  color: #7a2020;
+  border-radius: 8px;
+  padding: 12px 16px;
+  font-size: 13px;
+  margin-bottom: 18px;
+}
+</style>
+
+<div id="budget-root">
+  <div class="wrap">
+    <div class="brand"><span class="brand-mark">§</span><h1>Hushållsbudget</h1></div>
+    <p class="subtitle">Johanna &amp; Patrik — delas 50/50, ändringar sparas automatiskt</p>
+
+    <div id="setup-banner-slot"></div>
+    <div id="error-banner-slot"></div>
+
+    <div class="top-controls">
+      <div class="segmented" id="year-switch">
+        <button data-year="2026" class="active">2026</button>
+        <button data-year="2027">2027</button>
+      </div>
+      <div class="segmented" id="view-switch">
+        <button data-view="month" class="active">Månad</button>
+        <button data-view="year">Årsöversikt</button>
+      </div>
+    </div>
+
+    <div id="month-view">
+      <div class="month-tabs" id="month-tabs"></div>
+      <div id="ledger-container"><div class="loading">Laddar…</div></div>
+      <div class="swish-card" id="swish-card"></div>
+      <div class="save-hint">
+        <span id="save-hint-text">&nbsp;</span>
+        <button class="refresh-btn" id="refresh-btn" title="Hämta senaste ändringar">↻ uppdatera</button>
+      </div>
+    </div>
+
+    <div id="year-view" style="display:none;">
+      <div class="card">
+        <div style="padding:16px 16px 0;" id="year-table-container"><div class="loading">Laddar…</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function() {
+  // ── jsonbin.io-inställningar ──────────────────────────────────────────
+  // 1. Skapa gratiskonto på jsonbin.io
+  // 2. Skapa en Bin med innehållet {}  →  kopiera Bin-ID
+  // 3. Skapa en Access Key med behörighet Read + Update (inte Create/Delete)
+  // 4. Klistra in båda värdena nedan mellan citattecknen
+  const JSONBIN_BIN_ID = '6a8db19bda38895dfe0f2201';
+  const JSONBIN_ACCESS_KEY = '$2a$10$Mc506vUHj1qyMv48jCBc.u4ol0Jyvjz9456aLuy9LD1TCr61.2wIy';
+  // ─────────────────────────────────────────────────────────────────────
+
+  const JSONBIN_BASE = 'https://api.jsonbin.io/v3/b/' + JSONBIN_BIN_ID;
+  const isConfigured = JSONBIN_BIN_ID && JSONBIN_BIN_ID.indexOf('PASTE_') !== 0 &&
+                        JSONBIN_ACCESS_KEY && JSONBIN_ACCESS_KEY.indexOf('PASTE_') !== 0;
+
+  const MONTHS = ["Januari","Februari","Mars","April","Maj","Juni","Juli","Augusti","September","Oktober","November","December"];
+  const FIXED_CATEGORIES = ["Hyra","CarPay","Elförbrukning","Elnät","Hemförsäkring","Boendeparkering","Lynk&Co 01","Trängselskatt"];
+
+  const state = {
+    year: 2026,
+    month: 0, // 0-indexed
+    view: 'month',
+    data: null, // current month data
+    saveTimer: null,
+    remote: {}, // full cache of all months, keyed by storageKey
+    fetching: false,
+  };
+
+  const root = document.getElementById('budget-root');
+  const ledgerContainer = document.getElementById('ledger-container');
+  const swishCard = document.getElementById('swish-card');
+  const monthTabsEl = document.getElementById('month-tabs');
+  const saveHint = document.getElementById('save-hint-text');
+  const yearTableContainer = document.getElementById('year-table-container');
+  const setupSlot = document.getElementById('setup-banner-slot');
+  const errorSlot = document.getElementById('error-banner-slot');
+  const refreshBtn = document.getElementById('refresh-btn');
+
+  function fmt(n) {
+    n = Number(n) || 0;
+    return n.toLocaleString('sv-SE', { minimumFractionDigits: 0, maximumFractionDigits: 2 }) + ' kr';
+  }
+
+  function storageKey(year, monthIdx) {
+    return 'budget-' + year + '-' + String(monthIdx + 1).padStart(2, '0');
+  }
+
+  function defaultData() {
+    return {
+      fixed: FIXED_CATEGORIES.map(name => ({ name, johanna: '', patrik: '' })),
+      extra: [],
+    };
+  }
+
+  function normalize(raw) {
+    if (!raw || typeof raw !== 'object') return defaultData();
+    if (!raw.fixed || raw.fixed.length !== FIXED_CATEGORIES.length) {
+      const d = defaultData();
+      d.extra = raw.extra || [];
+      return d;
+    }
+    raw.extra = raw.extra || [];
+    return raw;
+  }
+
+  function showError(msg) {
+    errorSlot.innerHTML = '<div class="error-banner">' + msg + '</div>';
+  }
+  function clearError() { errorSlot.innerHTML = ''; }
+
+  if (!isConfigured) {
+    setupSlot.innerHTML =
+      '<div class="setup-banner"><b>Molnsynk är inte inställd än</b>' +
+      'Öppna filen och fyll i <code>JSONBIN_BIN_ID</code> och <code>JSONBIN_ACCESS_KEY</code> ' +
+      'högst upp i &lt;script&gt;-taggen. Fram tills dess sparas inget mellan besök.</div>';
+  }
+
+  // Fetches the whole bin and updates state.remote. Returns true on success.
+  async function fetchRemote() {
+    if (!isConfigured) return false;
+    state.fetching = true;
+    try {
+      const res = await fetch(JSONBIN_BASE + '/latest', {
+        headers: { 'X-Access-Key': JSONBIN_ACCESS_KEY },
+      });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const json = await res.json();
+      state.remote = (json && json.record && typeof json.record === 'object') ? json.record : {};
+      clearError();
+      return true;
+    } catch (e) {
+      showError('Kunde inte hämta data från molnet. Kontrollera Bin-ID, Access Key och din internetanslutning.');
+      return false;
+    } finally {
+      state.fetching = false;
+    }
+  }
+
+  async function pushRemote() {
+    if (!isConfigured) return false;
+    try {
+      const res = await fetch(JSONBIN_BASE, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Access-Key': JSONBIN_ACCESS_KEY,
+        },
+        body: JSON.stringify(state.remote),
+      });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      clearError();
+      return true;
+    } catch (e) {
+      showError('Kunde inte spara till molnet. Ändringen finns kvar i den här fliken tills det går att försöka igen.');
+      return false;
+    }
+  }
+
+  function getMonthData(year, monthIdx) {
+    const key = storageKey(year, monthIdx);
+    return normalize(state.remote[key]);
+  }
+
+  function scheduleSave() {
+    saveHint.textContent = 'Sparar…';
+    const key = storageKey(state.year, state.month);
+    state.remote[key] = state.data;
+    clearTimeout(state.saveTimer);
+    state.saveTimer = setTimeout(async () => {
+      const ok = await pushRemote();
+      saveHint.textContent = ok ? 'Sparat ✓' : 'Kunde inte spara';
+      if (ok) setTimeout(() => { if (saveHint.textContent === 'Sparat ✓') saveHint.innerHTML = '&nbsp;'; }, 1400);
+    }, 500);
+  }
+
+  refreshBtn.addEventListener('click', async () => {
+    saveHint.textContent = 'Uppdaterar…';
+    await fetchRemote();
+    if (state.view === 'month') {
+      state.data = getMonthData(state.year, state.month);
+      renderLedger();
+      renderSwish();
+    } else {
+      renderYearView();
+    }
+    saveHint.textContent = 'Uppdaterat ✓';
+    setTimeout(() => { if (saveHint.textContent === 'Uppdaterat ✓') saveHint.innerHTML = '&nbsp;'; }, 1400);
+  });
+
+  // Silently refresh when the tab regains focus, unless the user is typing.
+  window.addEventListener('focus', async () => {
+    if (!isConfigured) return;
+    const active = document.activeElement;
+    const isTyping = active && (active.closest('#ledger-container') || active.closest('#swish-card'));
+    if (isTyping) return;
+    await fetchRemote();
+    if (state.view === 'month') {
+      state.data = getMonthData(state.year, state.month);
+      renderLedger();
+      renderSwish();
+    } else if (state.view === 'year') {
+      renderYearView();
+    }
+  });
+
+  function totals(data) {
+    let j = 0, p = 0;
+    [...data.fixed, ...data.extra].forEach(row => {
+      j += Number(row.johanna) || 0;
+      p += Number(row.patrik) || 0;
+    });
+    return { j, p, total: j + p };
+  }
+
+  function renderMonthTabs() {
+    monthTabsEl.innerHTML = '';
+    MONTHS.forEach((m, i) => {
+      const btn = document.createElement('button');
+      btn.className = 'month-pill' + (i === state.month ? ' active' : '');
+      btn.textContent = m.slice(0, 3);
+      btn.addEventListener('click', () => switchMonth(i));
+      monthTabsEl.appendChild(btn);
+    });
+  }
+
+  function rowTemplate(row, idx, isExtra) {
+    const div = document.createElement('div');
+    div.className = 'ledger-row';
+
+    const nameCell = document.createElement('div');
+    if (isExtra) {
+      const inp = document.createElement('input');
+      inp.className = 'cat-input';
+      inp.placeholder = 'Beskrivning, t.ex. Besiktning';
+      inp.value = row.name || '';
+      inp.addEventListener('input', () => { row.name = inp.value; scheduleSave(); });
+      nameCell.appendChild(inp);
+    } else {
+      nameCell.className = 'cat-name';
+      nameCell.textContent = row.name;
+    }
+    div.appendChild(nameCell);
+
+    ['johanna', 'patrik'].forEach(person => {
+      const inp = document.createElement('input');
+      inp.type = 'number';
+      inp.inputMode = 'decimal';
+      inp.step = '0.01';
+      inp.min = '0';
+      inp.placeholder = '0';
+      inp.className = 'amount-input ' + (person === 'johanna' ? 'j-input' : 'p-input');
+      inp.value = row[person] === '' || row[person] == null ? '' : row[person];
+      inp.addEventListener('input', () => {
+        row[person] = inp.value;
+        renderSwish();
+        renderTotalsRow();
+        scheduleSave();
+      });
+      div.appendChild(inp);
+    });
+
+    const delBtn = document.createElement('button');
+    delBtn.className = 'row-del';
+    delBtn.innerHTML = isExtra ? '✕' : '';
+    delBtn.title = isExtra ? 'Ta bort rad' : '';
+    if (isExtra) {
+      delBtn.addEventListener('click', () => {
+        state.data.extra.splice(idx, 1);
+        renderLedger();
+        renderSwish();
+        scheduleSave();
+      });
+    } else {
+      delBtn.style.visibility = 'hidden';
+    }
+    div.appendChild(delBtn);
+
+    return div;
+  }
+
+  let totalsRowEl = null;
+
+  function renderTotalsRow() {
+    if (!totalsRowEl) return;
+    const t = totals(state.data);
+    totalsRowEl.innerHTML =
+      '<div>Totalt</div>' +
+      '<div class="col-j mono">' + fmt(t.j) + '</div>' +
+      '<div class="col-p mono">' + fmt(t.p) + '</div>' +
+      '<div></div>';
+  }
+
+  function renderLedger() {
+    ledgerContainer.innerHTML = '';
+    const card = document.createElement('div');
+    card.className = 'card';
+
+    const head = document.createElement('div');
+    head.className = 'ledger-head';
+    head.innerHTML = '<div>Utgift</div><div class="col-j">Johanna</div><div class="col-p">Patrik</div><div></div>';
+    card.appendChild(head);
+
+    state.data.fixed.forEach((row) => card.appendChild(rowTemplate(row, -1, false)));
+    state.data.extra.forEach((row, idx) => card.appendChild(rowTemplate(row, idx, true)));
+
+    const addBtn = document.createElement('button');
+    addBtn.className = 'add-row-btn';
+    addBtn.textContent = '+ Lägg till oregelbundet utlägg';
+    addBtn.addEventListener('click', () => {
+      state.data.extra.push({ name: '', johanna: '', patrik: '' });
+      renderLedger();
+      scheduleSave();
+    });
+    card.appendChild(addBtn);
+
+    totalsRowEl = document.createElement('div');
+    totalsRowEl.className = 'totals-row';
+    card.appendChild(totalsRowEl);
+
+    ledgerContainer.appendChild(card);
+    renderTotalsRow();
+  }
+
+  function renderSwish() {
+    const t = totals(state.data);
+    const diff = (t.j - t.p) / 2; // positive -> Patrik owes Johanna
+    const each = t.total / 2;
+    let payer = null, receiver = null, amount = 0;
+    if (diff > 0.004) { payer = 'p'; receiver = 'j'; amount = diff; }
+    else if (diff < -0.004) { payer = 'j'; receiver = 'p'; amount = -diff; }
+
+    const rev = payer === 'j';
+    const trackClass = 'arrow-track' + (rev ? ' rev' : '');
+    const active = payer !== null;
+
+    let flowHtml =
+      '<div class="swish-flow">' +
+        '<div class="avatar j' + (payer === 'j' ? ' paying' : '') + '">J</div>' +
+        '<div class="' + trackClass + '">' +
+          '<svg viewBox="0 0 130 20" preserveAspectRatio="none">' +
+            (rev
+              ? '<path class="line' + (active ? ' active' : '') + '" d="M120 10 L14 10"/><polygon class="' + (active ? 'active' : '') + '" points="14,10 24,5 24,15"/>'
+              : '<path class="line' + (active ? ' active' : '') + '" d="M10 10 L116 10"/><polygon class="' + (active ? 'active' : '') + '" points="116,10 106,5 106,15"/>'
+            ) +
+            '<circle class="flow-dot' + (active ? ' animate' : '') + '" cx="10" cy="10" r="3.5"/>' +
+          '</svg>' +
+        '</div>' +
+        '<div class="avatar p' + (payer === 'p' ? ' paying' : '') + '">P</div>' +
+      '</div>';
+
+    let textHtml;
+    if (!active) {
+      textHtml = '<p class="swish-text">Ni är kvitt</p><p class="swish-sub">Ingen swish behöver göras denna månad.</p>';
+    } else {
+      const payerName = payer === 'j' ? 'Johanna' : 'Patrik';
+      const receiverName = receiver === 'j' ? 'Johanna' : 'Patrik';
+      textHtml =
+        '<p class="swish-text">' + payerName + ' swishar ' + receiverName + ' <span class="amt mono">' + fmt(amount) + '</span></p>' +
+        '<p class="swish-sub">Så att båda landar på samma andel av totalen.</p>';
+    }
+
+    const metaHtml =
+      '<div class="swish-meta">' +
+        '<span>Totalt: <b>' + fmt(t.total) + '</b></span>' +
+        '<span>Vardera: <b>' + fmt(each) + '</b></span>' +
+      '</div>';
+
+    swishCard.innerHTML = flowHtml + textHtml + metaHtml;
+  }
+
+  async function switchMonth(idx, opts) {
+    opts = opts || {};
+    state.month = idx;
+    renderMonthTabs();
+    if (!opts.skipFetch) {
+      ledgerContainer.innerHTML = '<div class="loading">Laddar…</div>';
+      swishCard.innerHTML = '';
+      await fetchRemote();
+    }
+    state.data = getMonthData(state.year, state.month);
+    renderLedger();
+    renderSwish();
+  }
+
+  async function switchYear(year) {
+    state.year = year;
+    document.querySelectorAll('#year-switch button').forEach(b => b.classList.toggle('active', b.dataset.year == year));
+    if (state.view === 'month') {
+      await switchMonth(state.month);
+    } else {
+      await renderYearView();
+    }
+  }
+
+  async function renderYearView() {
+    yearTableContainer.innerHTML = '<div class="loading">Laddar…</div>';
+    await fetchRemote();
+    const results = MONTHS.map((_, i) => getMonthData(state.year, i));
+    let yj = 0, yp = 0;
+    const rows = results.map((d, i) => {
+      const t = totals(d);
+      yj += t.j; yp += t.p;
+      const diff = (t.j - t.p) / 2;
+      let swishLabel = 'Kvitt';
+      if (diff > 0.004) swishLabel = 'P → J ' + fmt(diff);
+      else if (diff < -0.004) swishLabel = 'J → P ' + fmt(-diff);
+      return { name: MONTHS[i], t, swishLabel, idx: i };
+    });
+
+    let html = '<table class="year-table"><thead><tr>' +
+      '<th>Månad</th><th>Johanna</th><th>Patrik</th><th>Totalt</th><th>Swish</th>' +
+      '</tr></thead><tbody>';
+    rows.forEach(r => {
+      html += '<tr data-idx="' + r.idx + '">' +
+        '<td class="month-cell">' + r.name + '</td>' +
+        '<td class="j">' + fmt(r.t.j) + '</td>' +
+        '<td class="p">' + fmt(r.t.p) + '</td>' +
+        '<td class="tot">' + fmt(r.t.total) + '</td>' +
+        '<td class="swish-cell">' + r.swishLabel + '</td>' +
+        '</tr>';
+    });
+    const yearDiff = (yj - yp) / 2;
+    let yearSwish = 'Kvitt';
+    if (yearDiff > 0.004) yearSwish = 'Patrik → Johanna ' + fmt(yearDiff);
+    else if (yearDiff < -0.004) yearSwish = 'Johanna → Patrik ' + fmt(-yearDiff);
+    html += '</tbody><tfoot><tr>' +
+      '<td class="month-cell">Totalt ' + state.year + '</td>' +
+      '<td class="j">' + fmt(yj) + '</td>' +
+      '<td class="p">' + fmt(yp) + '</td>' +
+      '<td class="tot">' + fmt(yj + yp) + '</td>' +
+      '<td class="swish-cell">' + yearSwish + '</td>' +
+      '</tr></tfoot></table>';
+
+    yearTableContainer.innerHTML = html;
+    yearTableContainer.querySelectorAll('tbody tr').forEach(tr => {
+      tr.addEventListener('click', () => {
+        const idx = Number(tr.dataset.idx);
+        document.querySelector('#view-switch button[data-view="month"]').click();
+        switchMonth(idx, { skipFetch: true });
+      });
+    });
+  }
+
+  document.getElementById('year-switch').addEventListener('click', (e) => {
+    const btn = e.target.closest('button');
+    if (!btn) return;
+    switchYear(Number(btn.dataset.year));
+  });
+
+  document.getElementById('view-switch').addEventListener('click', (e) => {
+    const btn = e.target.closest('button');
+    if (!btn) return;
+    const view = btn.dataset.view;
+    state.view = view;
+    document.querySelectorAll('#view-switch button').forEach(b => b.classList.toggle('active', b === btn));
+    document.getElementById('month-view').style.display = view === 'month' ? '' : 'none';
+    document.getElementById('year-view').style.display = view === 'year' ? '' : 'none';
+    if (view === 'year') renderYearView();
+  });
+
+  // init
+  renderMonthTabs();
+  switchMonth(0);
+})();
+</script>

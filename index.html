@@ -501,6 +501,10 @@ html[data-theme="dark"], body[data-theme="dark"] { background: #1a1917; }
   color: var(--ink-soft);
   opacity: 0.7;
 }
+#budget-root #request-counter {
+  margin-top: 4px;
+  opacity: 0.55;
+}
 
 /* Row-cell wrappers (also used for responsive re-layout below) */
 #budget-root .cell-name { grid-area: name; min-width: 0; }
@@ -608,6 +612,7 @@ html[data-theme="dark"], body[data-theme="dark"] { background: #1a1917; }
     </div>
 
     <div class="app-footer" id="app-footer">&nbsp;</div>
+    <div class="app-footer" id="request-counter">&nbsp;</div>
   </div>
 </div>
 
@@ -624,7 +629,13 @@ html[data-theme="dark"], body[data-theme="dark"] { background: #1a1917; }
   //                        auto-zoom vid inmatning, staplad radlayout på
   //                        smala skärmar, "lägg till på hemskärmen"-metan.
   //                        Ny ikon: guldmynt med dollartecken.
-  const APP_VERSION = '1.3.0';
+  // v1.4.0 (2026-08-25) – Requesträknare (delad, sparas i binen) och
+  //                        konfigurerbart synk-intervall för att hushålla
+  //                        med jsonbin.io:s 10 000 gratis-requests.
+  // v1.4.1 (2026-08-25) – Kalibrerade requesträknaren mot faktiskt antal
+  //                        kvar på jsonbin.io (9905), visar nu "kvar"
+  //                        istället för "använda".
+  const APP_VERSION = '1.4.1';
   const APP_UPDATED = '2026-08-25';
   // ─────────────────────────────────────────────────────────────────────
 
@@ -635,6 +646,26 @@ html[data-theme="dark"], body[data-theme="dark"] { background: #1a1917; }
   // 4. Klistra in båda värdena nedan mellan citattecknen
   const JSONBIN_BIN_ID = '6a8db19bda38895dfe0f2201';
   const JSONBIN_ACCESS_KEY = '$2a$10$Mc506vUHj1qyMv48jCBc.u4ol0Jyvjz9456aLuy9LD1TCr61.2wIy';
+  // ─────────────────────────────────────────────────────────────────────
+
+  // ── Spara requests ──────────────────────────────────────────────────
+  // Höj SYNC_MIN_INTERVAL_SECONDS för att synka mer sällan (färre requests,
+  // men längre innan ni ser varandras ändringar). 60 = hämtar som mest en
+  // gång i minuten automatiskt. "↻ uppdatera"-knappen hämtar alltid direkt,
+  // oavsett detta värde.
+  const SYNC_MIN_INTERVAL_SECONDS = 60;
+  // Hur länge appen väntar efter senaste knapptryckning innan den sparar.
+  // Högre värde = färre sparningar om ni skriver i flera fält i följd.
+  const SAVE_DEBOUNCE_MS = 1500;
+
+  // Kalibrering av requesträknaren mot jsonbin.io:s dashboard. Räknaren
+  // nedan (requestCount) räknar bara det appen själv gör härifrån och
+  // framåt — den vet inte om requests som gjorts innan räknaren fanns.
+  // Kolla "Requests Remaining" på jsonbin.io/dashboard och räkna ut:
+  //   BASELINE_USED = 10000 − (det jsonbin.io visar som kvar just nu)
+  // och uppdatera värdet nedan, så stämmer siffran i appen från och med nu.
+  const REQUEST_TOTAL = 10000;
+  const BASELINE_USED = 95; // 10 000 − 9905 kvar (avstämt 2026-08-25)
   // ─────────────────────────────────────────────────────────────────────
 
   const JSONBIN_BASE = 'https://api.jsonbin.io/v3/b/' + JSONBIN_BIN_ID;
@@ -652,6 +683,7 @@ html[data-theme="dark"], body[data-theme="dark"] { background: #1a1917; }
     saveTimer: null,
     remote: {}, // full cache of all months, keyed by storageKey
     fetching: false,
+    lastFetchAt: 0,
   };
 
   const root = document.getElementById('budget-root');
@@ -663,6 +695,7 @@ html[data-theme="dark"], body[data-theme="dark"] { background: #1a1917; }
   const setupSlot = document.getElementById('setup-banner-slot');
   const errorSlot = document.getElementById('error-banner-slot');
   const refreshBtn = document.getElementById('refresh-btn');
+  const requestCounterEl = document.getElementById('request-counter');
 
   function fmt(n) {
     n = Number(n) || 0;
@@ -702,10 +735,33 @@ html[data-theme="dark"], body[data-theme="dark"] { background: #1a1917; }
       'Öppna filen och fyll i <code>JSONBIN_BIN_ID</code> och <code>JSONBIN_ACCESS_KEY</code> ' +
       'högst upp i &lt;script&gt;-taggen. Fram tills dess sparas inget mellan besök.</div>';
   }
+  // Reads the shared request counter (stored inside the bin itself, so it's
+  // shared across both of your devices) and reflects it in the UI.
+  function noteRequest() {
+    const meta = state.remote._meta || (state.remote._meta = {});
+    meta.requestCount = (meta.requestCount || 0) + 1;
+    updateRequestCounterUI();
+  }
+
+  function updateRequestCounterUI() {
+    if (!requestCounterEl) return;
+    if (!isConfigured) { requestCounterEl.textContent = ''; return; }
+    const trackedSinceNow = (state.remote._meta && state.remote._meta.requestCount) || 0;
+    const used = BASELINE_USED + trackedSinceNow;
+    const remaining = Math.max(0, REQUEST_TOTAL - used);
+    requestCounterEl.textContent = '≈ ' + remaining.toLocaleString('sv-SE') + ' av ' +
+      REQUEST_TOTAL.toLocaleString('sv-SE') + ' jsonbin-requests kvar';
+  }
 
   // Fetches the whole bin and updates state.remote. Returns true on success.
-  async function fetchRemote() {
+  // Throttled to SYNC_MIN_INTERVAL_SECONDS unless force=true (manual refresh,
+  // or the very first load) — this is what keeps request usage down.
+  async function fetchRemote(force) {
     if (!isConfigured) return false;
+    const now = Date.now();
+    if (!force && state.lastFetchAt && (now - state.lastFetchAt) < SYNC_MIN_INTERVAL_SECONDS * 1000) {
+      return true; // recent enough — reuse what's already in memory, no request spent
+    }
     state.fetching = true;
     try {
       const res = await fetch(JSONBIN_BASE + '/latest', {
@@ -714,6 +770,8 @@ html[data-theme="dark"], body[data-theme="dark"] { background: #1a1917; }
       if (!res.ok) throw new Error('HTTP ' + res.status);
       const json = await res.json();
       state.remote = (json && json.record && typeof json.record === 'object') ? json.record : {};
+      state.lastFetchAt = now;
+      noteRequest();
       clearError();
       return true;
     } catch (e) {
@@ -727,6 +785,7 @@ html[data-theme="dark"], body[data-theme="dark"] { background: #1a1917; }
   async function pushRemote() {
     if (!isConfigured) return false;
     try {
+      noteRequest(); // folded into the same write, costs nothing extra
       const res = await fetch(JSONBIN_BASE, {
         method: 'PUT',
         headers: {
@@ -758,12 +817,12 @@ html[data-theme="dark"], body[data-theme="dark"] { background: #1a1917; }
       const ok = await pushRemote();
       saveHint.textContent = ok ? 'Sparat ✓' : 'Kunde inte spara';
       if (ok) setTimeout(() => { if (saveHint.textContent === 'Sparat ✓') saveHint.innerHTML = '&nbsp;'; }, 1400);
-    }, 500);
+    }, SAVE_DEBOUNCE_MS);
   }
 
   refreshBtn.addEventListener('click', async () => {
     saveHint.textContent = 'Uppdaterar…';
-    await fetchRemote();
+    await fetchRemote(true);
     if (state.view === 'month') {
       state.data = getMonthData(state.year, state.month);
       renderLedger();
@@ -776,6 +835,7 @@ html[data-theme="dark"], body[data-theme="dark"] { background: #1a1917; }
   });
 
   // Silently refresh when the tab regains focus, unless the user is typing.
+  // Still throttled by SYNC_MIN_INTERVAL_SECONDS like any other fetch.
   window.addEventListener('focus', async () => {
     if (!isConfigured) return;
     const active = document.activeElement;
@@ -826,6 +886,7 @@ html[data-theme="dark"], body[data-theme="dark"] { background: #1a1917; }
   // ── Versionsfot ─────────────────────────────────────────────────────
   document.getElementById('app-footer').textContent =
     'Hushållsbudget v' + APP_VERSION + ' · uppdaterad ' + APP_UPDATED;
+  updateRequestCounterUI(); // show the baseline estimate immediately, before first sync
 
   function totals(data) {
     let j = 0, p = 0;

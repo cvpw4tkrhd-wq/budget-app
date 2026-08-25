@@ -1,3 +1,19 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<title>Hushållsbudget</title>
+<meta name="theme-color" content="#b8872b">
+<meta name="format-detection" content="telephone=no">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Budget">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="icon" href="favicon.ico" sizes="any">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="manifest" href="manifest.json">
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,450;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap');
 
@@ -21,6 +37,36 @@
   min-height: 100%;
   padding: 0;
   -webkit-font-smoothing: antialiased;
+  transition: background .2s ease, color .2s ease;
+}
+#budget-root[data-theme="dark"] {
+  --bg: #1a1917;
+  --paper: #232220;
+  --ink: #f1ece1;
+  --ink-soft: #a89f8c;
+  --rule: #3a362e;
+  --rule-strong: #4c473b;
+  --johanna: #e08a97;
+  --johanna-soft: #3a262b;
+  --patrik: #7ec2bd;
+  --patrik-soft: #1f3634;
+  --gold: #e0ac4c;
+  --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 6px 20px rgba(0,0,0,0.25);
+}
+html, body { background: #f6f3ec; margin: 0; }
+html[data-theme="dark"], body[data-theme="dark"] { background: #1a1917; }
+
+#budget-root {
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
+}
+#budget-root, #budget-root * {
+  -webkit-tap-highlight-color: transparent;
+}
+#budget-root button, #budget-root input {
+  touch-action: manipulation;
 }
 #budget-root * { box-sizing: border-box; }
 #budget-root .mono { font-family: 'IBM Plex Mono', monospace; font-variant-numeric: tabular-nums; }
@@ -183,7 +229,7 @@
   font-family: 'IBM Plex Mono', monospace;
   font-size: 13.5px;
   text-align: right;
-  background: #fff;
+  background: var(--paper);
   color: var(--ink);
   transition: border-color .15s, box-shadow .15s;
 }
@@ -427,7 +473,101 @@
   font-size: 13px;
   margin-bottom: 18px;
 }
+#budget-root .theme-toggle {
+  border: 1px solid var(--rule-strong);
+  background: var(--paper);
+  color: var(--ink-soft);
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  line-height: 1;
+  transition: color .15s, border-color .15s;
+}
+#budget-root .theme-toggle:hover { color: var(--gold); border-color: var(--gold); }
+#budget-root .controls-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+#budget-root .app-footer {
+  text-align: center;
+  margin-top: 26px;
+  font-size: 11px;
+  color: var(--ink-soft);
+  opacity: 0.7;
+}
+
+/* Row-cell wrappers (also used for responsive re-layout below) */
+#budget-root .cell-name { grid-area: name; min-width: 0; }
+#budget-root .cell-j { grid-area: j; min-width: 0; }
+#budget-root .cell-p { grid-area: p; min-width: 0; }
+#budget-root .cell-del { grid-area: del; }
+#budget-root .amt-label {
+  display: none;
+  font-size: 10.5px;
+  font-weight: 700;
+  margin-bottom: 3px;
+  letter-spacing: 0.02em;
+}
+#budget-root .amt-label.j { color: var(--johanna); }
+#budget-root .amt-label.p { color: var(--patrik); }
+
+/* ── iPhone / small-screen adjustments ──────────────────────────────── */
+@media (max-width: 480px) {
+  #budget-root .wrap { padding: max(18px, env(safe-area-inset-top)) 14px 40px; }
+  #budget-root h1 { font-size: 22px; }
+  #budget-root .top-controls { gap: 8px; }
+  #budget-root .segmented button { padding: 7px 10px; font-size: 13px; }
+
+  /* Prevent iOS auto-zoom: form fields need a >=16px font-size */
+  #budget-root .amount-input,
+  #budget-root .cat-input { font-size: 16px; }
+
+  /* Bigger touch targets */
+  #budget-root .amount-input { padding: 11px 10px; }
+  #budget-root .month-pill { padding: 9px 14px; }
+  #budget-root .row-del { font-size: 20px; padding: 8px; }
+  #budget-root .theme-toggle { width: 40px; height: 40px; }
+
+  /* Smoother horizontal swipe through months */
+  #budget-root .month-tabs {
+    -webkit-overflow-scrolling: touch;
+    scroll-snap-type: x proximity;
+  }
+  #budget-root .month-pill { scroll-snap-align: start; }
+
+  /* Header row too tight for 4 columns on narrow phones — the inline
+     amt-label on each row already names the columns, so hide it */
+  #budget-root .ledger-head { display: none; }
+
+  #budget-root .totals-row,
+  #budget-root .ledger-head {
+    grid-template-columns: 1fr 74px 74px 26px;
+  }
+
+  /* Stack each row: name on its own line, amounts side by side below */
+  #budget-root .ledger-row {
+    grid-template-columns: 1fr 1fr 30px;
+    grid-template-areas: "name name del" "j p del";
+    row-gap: 8px;
+    padding: 12px 14px;
+  }
+  #budget-root .cell-del { align-self: start; justify-self: end; }
+  #budget-root .amt-label { display: block; }
+}
+
+@supports (-webkit-touch-callout: none) {
+  /* Safari-only: avoid the rubber-band revealing a mismatched background */
+  html { background: var(--bg, #f6f3ec); }
+}
 </style>
+</head>
+<body>
 
 <div id="budget-root">
   <div class="wrap">
@@ -442,9 +582,12 @@
         <button data-year="2026" class="active">2026</button>
         <button data-year="2027">2027</button>
       </div>
-      <div class="segmented" id="view-switch">
-        <button data-view="month" class="active">Månad</button>
-        <button data-view="year">Årsöversikt</button>
+      <div class="controls-right">
+        <div class="segmented" id="view-switch">
+          <button data-view="month" class="active">Månad</button>
+          <button data-view="year">Årsöversikt</button>
+        </div>
+        <button class="theme-toggle" id="theme-toggle" title="Byt tema" aria-label="Byt mellan ljust och mörkt tema">◐</button>
       </div>
     </div>
 
@@ -463,11 +606,28 @@
         <div style="padding:16px 16px 0;" id="year-table-container"><div class="loading">Laddar…</div></div>
       </div>
     </div>
+
+    <div class="app-footer" id="app-footer">&nbsp;</div>
   </div>
 </div>
 
 <script>
 (function() {
+  // ── Versionshistorik ────────────────────────────────────────────────
+  // v1.0.0 (2026-08-25) – Första version: månadsvis budget, extra-rader,
+  //                        swish-uträkning, årsöversikt, Claude-lagring.
+  // v1.1.0 (2026-08-25) – Bytt lagring till jsonbin.io för synk mellan
+  //                        enheter/personer. Manuell uppdatera-knapp.
+  // v1.2.0 (2026-08-25) – App-ikoner (favicon/hemskärm), mörkt/ljust tema,
+  //                        versionsfot.
+  // v1.3.0 (2026-08-25) – iPhone-anpassning: safe-area-padding, ingen
+  //                        auto-zoom vid inmatning, staplad radlayout på
+  //                        smala skärmar, "lägg till på hemskärmen"-metan.
+  //                        Ny ikon: guldmynt med dollartecken.
+  const APP_VERSION = '1.3.0';
+  const APP_UPDATED = '2026-08-25';
+  // ─────────────────────────────────────────────────────────────────────
+
   // ── jsonbin.io-inställningar ──────────────────────────────────────────
   // 1. Skapa gratiskonto på jsonbin.io
   // 2. Skapa en Bin med innehållet {}  →  kopiera Bin-ID
@@ -631,6 +791,42 @@
     }
   });
 
+  // ── Tema (ljust/mörkt) ─────────────────────────────────────────────
+  const themeToggleBtn = document.getElementById('theme-toggle');
+  const THEME_KEY = 'budget-theme';
+
+  function applyTheme(theme) {
+    root.setAttribute('data-theme', theme);
+    document.documentElement.setAttribute('data-theme', theme);
+    document.body.setAttribute('data-theme', theme);
+    themeToggleBtn.textContent = theme === 'dark' ? '☀' : '☾';
+    themeToggleBtn.title = theme === 'dark' ? 'Byt till ljust tema' : 'Byt till mörkt tema';
+  }
+
+  function initTheme() {
+    let saved = null;
+    try { saved = localStorage.getItem(THEME_KEY); } catch (e) { /* ignore */ }
+    if (saved === 'dark' || saved === 'light') {
+      applyTheme(saved);
+      return;
+    }
+    const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+    applyTheme(prefersDark ? 'dark' : 'light');
+  }
+
+  themeToggleBtn.addEventListener('click', () => {
+    const current = root.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
+    const next = current === 'dark' ? 'light' : 'dark';
+    applyTheme(next);
+    try { localStorage.setItem(THEME_KEY, next); } catch (e) { /* ignore */ }
+  });
+
+  initTheme();
+
+  // ── Versionsfot ─────────────────────────────────────────────────────
+  document.getElementById('app-footer').textContent =
+    'Hushållsbudget v' + APP_VERSION + ' · uppdaterad ' + APP_UPDATED;
+
   function totals(data) {
     let j = 0, p = 0;
     [...data.fixed, ...data.extra].forEach(row => {
@@ -656,6 +852,7 @@
     div.className = 'ledger-row';
 
     const nameCell = document.createElement('div');
+    nameCell.classList.add('cell-name');
     if (isExtra) {
       const inp = document.createElement('input');
       inp.className = 'cat-input';
@@ -664,12 +861,20 @@
       inp.addEventListener('input', () => { row.name = inp.value; scheduleSave(); });
       nameCell.appendChild(inp);
     } else {
-      nameCell.className = 'cat-name';
+      nameCell.classList.add('cat-name');
       nameCell.textContent = row.name;
     }
     div.appendChild(nameCell);
 
     ['johanna', 'patrik'].forEach(person => {
+      const wrap = document.createElement('div');
+      wrap.className = 'cell-' + (person === 'johanna' ? 'j' : 'p');
+
+      const label = document.createElement('span');
+      label.className = 'amt-label ' + (person === 'johanna' ? 'j' : 'p');
+      label.textContent = person === 'johanna' ? 'Johanna' : 'Patrik';
+      wrap.appendChild(label);
+
       const inp = document.createElement('input');
       inp.type = 'number';
       inp.inputMode = 'decimal';
@@ -684,11 +889,12 @@
         renderTotalsRow();
         scheduleSave();
       });
-      div.appendChild(inp);
+      wrap.appendChild(inp);
+      div.appendChild(wrap);
     });
 
     const delBtn = document.createElement('button');
-    delBtn.className = 'row-del';
+    delBtn.className = 'row-del cell-del';
     delBtn.innerHTML = isExtra ? '✕' : '';
     delBtn.title = isExtra ? 'Ta bort rad' : '';
     if (isExtra) {
@@ -891,3 +1097,5 @@
   switchMonth(0);
 })();
 </script>
+</body>
+</html>

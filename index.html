@@ -684,7 +684,12 @@ html[data-theme="dark"], body[data-theme="dark"] { background: #1a1917; }
   //                        ifyllda fält i rad inte ger en separat request
   //                        vardera.
   // v1.7.2 (2026-08-25) – Minsta tid mellan sparningar sänkt till 6 sek.
-  const APP_VERSION = '1.7.2';
+  // v1.8.0 (2026-08-25) – "Senast redigerad månad" sparas nu delat (i
+  //                        molnet) istället för bara lokalt i telefonen,
+  //                        så appen inte tappar den om webbläsaren rensar
+  //                        sitt lokala lagringsutrymme eller ni byter
+  //                        enhet.
+  const APP_VERSION = '1.8.0';
   const APP_UPDATED = '2026-08-25';
   // ─────────────────────────────────────────────────────────────────────
 
@@ -871,6 +876,11 @@ html[data-theme="dark"], body[data-theme="dark"] { background: #1a1917; }
     saveHint.textContent = 'Sparar…';
     const key = storageKey(state.year, state.month);
     state.remote[key] = state.data;
+    // Record which month was actually edited, shared via the bin itself
+    // (so it survives per-device storage being cleared, and works the
+    // same regardless of which device/browser you're on).
+    state.remote._meta = state.remote._meta || {};
+    state.remote._meta.lastEdited = { year: state.year, month: state.month };
     clearTimeout(state.saveTimer);
 
     const now = Date.now();
@@ -1418,14 +1428,27 @@ html[data-theme="dark"], body[data-theme="dark"] { background: #1a1917; }
   });
 
   // init
-  const last = loadLastView();
-  if (last) {
-    state.year = last.year;
-    state.month = last.month;
+  (async () => {
+    // Local last-view is instant but per-device and can be cleared by the
+    // browser. Fetch the shared bin first and prefer its "last edited"
+    // month/year when available — it's authoritative and works the same
+    // on any device.
+    const local = loadLastView();
+    if (local) {
+      state.year = local.year;
+      state.month = local.month;
+    }
+    if (isConfigured) await fetchRemote(true);
+    const remoteLast = state.remote._meta && state.remote._meta.lastEdited;
+    if (remoteLast && (remoteLast.year === 2026 || remoteLast.year === 2027) &&
+        Number.isInteger(remoteLast.month) && remoteLast.month >= 0 && remoteLast.month <= 11) {
+      state.year = remoteLast.year;
+      state.month = remoteLast.month;
+    }
     document.querySelectorAll('#year-switch button').forEach(b => b.classList.toggle('active', Number(b.dataset.year) === state.year));
-  }
-  renderMonthTabs();
-  switchMonth(state.month);
+    renderMonthTabs();
+    await switchMonth(state.month, { skipFetch: true }); // already fetched above
+  })();
 })();
 </script>
 </body>

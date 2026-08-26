@@ -241,6 +241,35 @@ html[data-theme="dark"], body[data-theme="dark"] { background: #1a1917; }
 #budget-root .amount-input.j-input:focus { border-color: var(--johanna); }
 #budget-root .amount-input.p-input { border-color: var(--patrik-soft); }
 #budget-root .amount-input.p-input:focus { border-color: var(--patrik); }
+#budget-root .amount-input.inherited {
+  font-style: italic;
+  color: var(--ink-soft);
+  border-style: dashed;
+  background: repeating-linear-gradient(135deg, transparent, transparent 6px, rgba(184,135,43,0.05) 6px, rgba(184,135,43,0.05) 12px);
+}
+#budget-root .amount-input.inherited:focus {
+  font-style: normal;
+  color: var(--ink);
+}
+#budget-root .export-bar {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 10px;
+}
+#budget-root .export-btn {
+  border: 1px solid var(--rule-strong);
+  background: var(--paper);
+  color: var(--gold);
+  font-family: 'Inter', sans-serif;
+  font-weight: 600;
+  font-size: 13px;
+  padding: 8px 14px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background .15s, border-color .15s;
+}
+#budget-root .export-btn:hover:not(:disabled) { background: #faf4e6; border-color: var(--gold); }
+#budget-root .export-btn:disabled { opacity: 0.6; cursor: default; }
 
 #budget-root .row-del {
   border: none;
@@ -606,6 +635,9 @@ html[data-theme="dark"], body[data-theme="dark"] { background: #1a1917; }
     </div>
 
     <div id="year-view" style="display:none;">
+      <div class="export-bar">
+        <button class="export-btn" id="export-btn">⭳ Exportera till Excel</button>
+      </div>
       <div class="card">
         <div style="padding:16px 16px 0;" id="year-table-container"><div class="loading">Laddar…</div></div>
       </div>
@@ -637,7 +669,22 @@ html[data-theme="dark"], body[data-theme="dark"] { background: #1a1917; }
   //                        istället för "använda".
   // v1.5.0 (2026-08-25) – Appen öppnas nu på senast visad månad/år (sparas
   //                        lokalt på enheten) istället för alltid Jan 2026.
-  const APP_VERSION = '1.5.0';
+  // v1.6.0 (2026-08-25) – Oförändrade fasta utgifter förifylls automatiskt
+  //                        med föregående månads värde (kursiverat/streckat
+  //                        fält). Klicka och skriv för att ersätta direkt –
+  //                        hela värdet markeras vid fokus. Gäller bara de
+  //                        åtta fasta raderna, inte oregelbundna utlägg.
+  // v1.7.0 (2026-08-25) – Exportera till Excel-knapp i Årsöversikt: skapar
+  //                        en .xlsx med en flik per månad plus en
+  //                        sammanställningsflik, med aktuella belopp och
+  //                        swish-uträkning. Laddar SheetJS från CDN vid
+  //                        behov.
+  // v1.7.1 (2026-08-25) – Minsta tid mellan två sparningar (15 sek), inte
+  //                        bara paus efter senaste knapptryckning, så flera
+  //                        ifyllda fält i rad inte ger en separat request
+  //                        vardera.
+  // v1.7.2 (2026-08-25) – Minsta tid mellan sparningar sänkt till 6 sek.
+  const APP_VERSION = '1.7.2';
   const APP_UPDATED = '2026-08-25';
   // ─────────────────────────────────────────────────────────────────────
 
@@ -657,8 +704,11 @@ html[data-theme="dark"], body[data-theme="dark"] { background: #1a1917; }
   // oavsett detta värde.
   const SYNC_MIN_INTERVAL_SECONDS = 60;
   // Hur länge appen väntar efter senaste knapptryckning innan den sparar.
-  // Högre värde = färre sparningar om ni skriver i flera fält i följd.
   const SAVE_DEBOUNCE_MS = 1500;
+  // Dessutom: minsta tid mellan två faktiska sparningar, även om ni fyller i
+  // flera olika fält efter varandra med pauser emellan. Höj för att spara
+  // fler requests, sänk om ni vill se ändringar synka snabbare.
+  const SAVE_MIN_INTERVAL_MS = 6000;
 
   // Kalibrering av requesträknaren mot jsonbin.io:s dashboard. Räknaren
   // nedan (requestCount) räknar bara det appen själv gör härifrån och
@@ -686,6 +736,7 @@ html[data-theme="dark"], body[data-theme="dark"] { background: #1a1917; }
     remote: {}, // full cache of all months, keyed by storageKey
     fetching: false,
     lastFetchAt: 0,
+    lastSaveAt: 0,
   };
 
   const root = document.getElementById('budget-root');
@@ -698,10 +749,16 @@ html[data-theme="dark"], body[data-theme="dark"] { background: #1a1917; }
   const errorSlot = document.getElementById('error-banner-slot');
   const refreshBtn = document.getElementById('refresh-btn');
   const requestCounterEl = document.getElementById('request-counter');
+  const exportBtn = document.getElementById('export-btn');
+  const EXPORT_LABEL = '⭳ Exportera till Excel';
 
   function fmt(n) {
     n = Number(n) || 0;
     return n.toLocaleString('sv-SE', { minimumFractionDigits: 0, maximumFractionDigits: 2 }) + ' kr';
+  }
+
+  function round2(n) {
+    return Math.round((Number(n) || 0) * 100) / 100;
   }
 
   function storageKey(year, monthIdx) {
@@ -815,11 +872,18 @@ html[data-theme="dark"], body[data-theme="dark"] { background: #1a1917; }
     const key = storageKey(state.year, state.month);
     state.remote[key] = state.data;
     clearTimeout(state.saveTimer);
+
+    const now = Date.now();
+    const sinceLastSave = now - state.lastSaveAt;
+    const minWait = Math.max(0, SAVE_MIN_INTERVAL_MS - sinceLastSave);
+    const delay = Math.max(SAVE_DEBOUNCE_MS, minWait);
+
     state.saveTimer = setTimeout(async () => {
       const ok = await pushRemote();
+      state.lastSaveAt = Date.now();
       saveHint.textContent = ok ? 'Sparat ✓' : 'Kunde inte spara';
       if (ok) setTimeout(() => { if (saveHint.textContent === 'Sparat ✓') saveHint.innerHTML = '&nbsp;'; }, 1400);
-    }, SAVE_DEBOUNCE_MS);
+    }, delay);
   }
 
   refreshBtn.addEventListener('click', async () => {
@@ -905,6 +969,110 @@ html[data-theme="dark"], body[data-theme="dark"] { background: #1a1917; }
     return null;
   }
 
+  // ── Exportera till Excel ───────────────────────────────────────────
+  // Laddar SheetJS (xlsx-biblioteket) från CDN först när man faktiskt
+  // exporterar, så sidan inte drar in det i onödan för alla besökare.
+  let xlsxLoadPromise = null;
+  function loadXlsxLib() {
+    if (window.XLSX) return Promise.resolve();
+    if (xlsxLoadPromise) return xlsxLoadPromise;
+    xlsxLoadPromise = new Promise((resolve, reject) => {
+      const s = document.createElement('script');
+      s.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+      s.onload = () => resolve();
+      s.onerror = () => reject(new Error('kunde inte ladda Excel-biblioteket'));
+      document.head.appendChild(s);
+    });
+    return xlsxLoadPromise;
+  }
+
+  function currencyFormatCols(ws, cols) {
+    if (!ws['!ref']) return;
+    const range = XLSX.utils.decode_range(ws['!ref']);
+    for (let r = range.s.r; r <= range.e.r; r++) {
+      cols.forEach(c => {
+        const ref = XLSX.utils.encode_cell({ r, c });
+        if (ws[ref] && typeof ws[ref].v === 'number') ws[ref].z = '#,##0.00 "kr"';
+      });
+    }
+  }
+
+  function swishLabelFor(j, p, arrowLong) {
+    const diff = (j - p) / 2;
+    if (diff > 0.004) return (arrowLong ? 'Patrik swishar Johanna ' : 'P → J ') + fmt(diff);
+    if (diff < -0.004) return (arrowLong ? 'Johanna swishar Patrik ' : 'J → P ') + fmt(-diff);
+    return arrowLong ? 'Ni är kvitt' : 'Kvitt';
+  }
+
+  async function exportYearToExcel(year) {
+    exportBtn.disabled = true;
+    exportBtn.textContent = 'Förbereder…';
+    try {
+      await loadXlsxLib();
+      await fetchRemote(true); // ensure the export reflects the latest synced data
+      const wb = XLSX.utils.book_new();
+
+      // Sammanställning
+      const summaryRows = [['Månad', 'Johanna', 'Patrik', 'Totalt', 'Swish']];
+      let yj = 0, yp = 0;
+      for (let i = 0; i < 12; i++) {
+        const t = computeTotals(year, i);
+        yj += t.j; yp += t.p;
+        summaryRows.push([MONTHS[i], round2(t.j), round2(t.p), round2(t.total), swishLabelFor(t.j, t.p, false)]);
+      }
+      summaryRows.push(['Totalt ' + year, round2(yj), round2(yp), round2(yj + yp), swishLabelFor(yj, yp, false)]);
+      const wsSummary = XLSX.utils.aoa_to_sheet(summaryRows);
+      wsSummary['!cols'] = [{ wch: 12 }, { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 28 }];
+      currencyFormatCols(wsSummary, [1, 2, 3]);
+      XLSX.utils.book_append_sheet(wb, wsSummary, 'Sammanställning');
+
+      // En flik per månad
+      const usedNames = new Set();
+      for (let i = 0; i < 12; i++) {
+        const rows = [['Utgift', 'Johanna', 'Patrik']];
+        FIXED_CATEGORIES.forEach(cat => {
+          const j = resolveFixedValue(year, i, cat, 'johanna').value;
+          const p = resolveFixedValue(year, i, cat, 'patrik').value;
+          rows.push([cat, j === '' ? 0 : round2(Number(j)), p === '' ? 0 : round2(Number(p))]);
+        });
+        const data = getMonthData(year, i);
+        data.extra.forEach(row => {
+          if (!row.name && !row.johanna && !row.patrik) return; // hoppa över helt tomma rader
+          rows.push([
+            row.name || 'Övrigt',
+            row.johanna === '' || row.johanna == null ? 0 : round2(Number(row.johanna)),
+            row.patrik === '' || row.patrik == null ? 0 : round2(Number(row.patrik)),
+          ]);
+        });
+        const t = computeTotals(year, i);
+        rows.push([]);
+        rows.push(['Totalt', round2(t.j), round2(t.p)]);
+        rows.push([]);
+        rows.push(['Swish', swishLabelFor(t.j, t.p, true)]);
+
+        const ws = XLSX.utils.aoa_to_sheet(rows);
+        ws['!cols'] = [{ wch: 26 }, { wch: 14 }, { wch: 14 }];
+        currencyFormatCols(ws, [1, 2]);
+
+        let baseName = MONTHS[i].slice(0, 3) + ' ' + year;
+        let sheetName = baseName;
+        let n = 2;
+        while (usedNames.has(sheetName)) { sheetName = baseName + ' (' + n + ')'; n++; }
+        usedNames.add(sheetName);
+        XLSX.utils.book_append_sheet(wb, ws, sheetName);
+      }
+
+      XLSX.writeFile(wb, 'Hushallsbudget_' + year + '.xlsx');
+    } catch (e) {
+      showError('Kunde inte exportera till Excel (' + e.message + '). Kontrollera din internetanslutning och försök igen.');
+    } finally {
+      exportBtn.disabled = false;
+      exportBtn.textContent = EXPORT_LABEL;
+    }
+  }
+
+  exportBtn.addEventListener('click', () => exportYearToExcel(state.year));
+
   // ── Versionsfot ─────────────────────────────────────────────────────
   document.getElementById('app-footer').textContent =
     'Hushållsbudget v' + APP_VERSION + ' · uppdaterad ' + APP_UPDATED;
@@ -913,6 +1081,46 @@ html[data-theme="dark"], body[data-theme="dark"] { background: #1a1917; }
   function totals(data) {
     let j = 0, p = 0;
     [...data.fixed, ...data.extra].forEach(row => {
+      j += Number(row.johanna) || 0;
+      p += Number(row.patrik) || 0;
+    });
+    return { j, p, total: j + p };
+  }
+
+  // Walks backward from (year, monthIdx) — including the month itself —
+  // looking for the nearest explicit (non-blank) value for a fixed category.
+  // Only applies to the eight fixed rows; irregular "Övrigt" rows never
+  // carry forward. Returns { value, inherited, fromYear, fromMonth }.
+  function resolveFixedValue(year, monthIdx, catName, person) {
+    let y = year, m = monthIdx;
+    while (true) {
+      const raw = state.remote[storageKey(y, m)];
+      if (raw && Array.isArray(raw.fixed)) {
+        const row = raw.fixed.find(r => r.name === catName);
+        if (row) {
+          const val = row[person];
+          if (val !== '' && val != null) {
+            return { value: val, inherited: !(y === year && m === monthIdx), fromYear: y, fromMonth: m };
+          }
+        }
+      }
+      if (y === 2026 && m === 0) break; // no earlier month exists
+      m -= 1;
+      if (m < 0) { m = 11; y -= 1; }
+    }
+    return { value: '', inherited: false, fromYear: null, fromMonth: null };
+  }
+
+  // Totals for a given month, using inherited values for any fixed-row
+  // cell the user hasn't explicitly filled in this month.
+  function computeTotals(year, monthIdx) {
+    let j = 0, p = 0;
+    FIXED_CATEGORIES.forEach(catName => {
+      j += Number(resolveFixedValue(year, monthIdx, catName, 'johanna').value) || 0;
+      p += Number(resolveFixedValue(year, monthIdx, catName, 'patrik').value) || 0;
+    });
+    const data = getMonthData(year, monthIdx);
+    data.extra.forEach(row => {
       j += Number(row.johanna) || 0;
       p += Number(row.patrik) || 0;
     });
@@ -965,12 +1173,44 @@ html[data-theme="dark"], body[data-theme="dark"] { background: #1a1917; }
       inp.min = '0';
       inp.placeholder = '0';
       inp.className = 'amount-input ' + (person === 'johanna' ? 'j-input' : 'p-input');
-      inp.value = row[person] === '' || row[person] == null ? '' : row[person];
+
+      let displayValue = row[person];
+      let inheritedInfo = null;
+      if (!isExtra && (row[person] === '' || row[person] == null)) {
+        const resolved = resolveFixedValue(state.year, state.month, row.name, person);
+        if (resolved.inherited && resolved.value !== '') {
+          displayValue = resolved.value;
+          inheritedInfo = resolved;
+        }
+      }
+      inp.value = displayValue === '' || displayValue == null ? '' : displayValue;
+      if (inheritedInfo) {
+        inp.classList.add('inherited');
+        inp.title = 'Oförändrat sedan ' + MONTHS[inheritedInfo.fromMonth].slice(0, 3) + ' ' + inheritedInfo.fromYear +
+          ' — klicka och skriv för att ändra';
+      }
+
+      inp.addEventListener('focus', () => inp.select());
       inp.addEventListener('input', () => {
         row[person] = inp.value;
+        inp.classList.remove('inherited');
+        inp.removeAttribute('title');
         renderSwish();
         renderTotalsRow();
         scheduleSave();
+      });
+      // If cleared back to blank, snap back to showing the inherited
+      // suggestion (if any) rather than leaving a confusing empty box.
+      inp.addEventListener('blur', () => {
+        if (inp.value !== '') return;
+        if (isExtra) return;
+        const resolved = resolveFixedValue(state.year, state.month, row.name, person);
+        if (resolved.inherited && resolved.value !== '') {
+          inp.value = resolved.value;
+          inp.classList.add('inherited');
+          inp.title = 'Oförändrat sedan ' + MONTHS[resolved.fromMonth].slice(0, 3) + ' ' + resolved.fromYear +
+            ' — klicka och skriv för att ändra';
+        }
       });
       wrap.appendChild(inp);
       div.appendChild(wrap);
@@ -999,7 +1239,7 @@ html[data-theme="dark"], body[data-theme="dark"] { background: #1a1917; }
 
   function renderTotalsRow() {
     if (!totalsRowEl) return;
-    const t = totals(state.data);
+    const t = computeTotals(state.year, state.month);
     totalsRowEl.innerHTML =
       '<div>Totalt</div>' +
       '<div class="col-j mono">' + fmt(t.j) + '</div>' +
@@ -1039,7 +1279,7 @@ html[data-theme="dark"], body[data-theme="dark"] { background: #1a1917; }
   }
 
   function renderSwish() {
-    const t = totals(state.data);
+    const t = computeTotals(state.year, state.month);
     const diff = (t.j - t.p) / 2; // positive -> Patrik owes Johanna
     const each = t.total / 2;
     let payer = null, receiver = null, amount = 0;
@@ -1114,10 +1354,10 @@ html[data-theme="dark"], body[data-theme="dark"] { background: #1a1917; }
   async function renderYearView() {
     yearTableContainer.innerHTML = '<div class="loading">Laddar…</div>';
     await fetchRemote();
-    const results = MONTHS.map((_, i) => getMonthData(state.year, i));
+    const results = MONTHS.map((_, i) => i);
     let yj = 0, yp = 0;
-    const rows = results.map((d, i) => {
-      const t = totals(d);
+    const rows = results.map((i) => {
+      const t = computeTotals(state.year, i);
       yj += t.j; yp += t.p;
       const diff = (t.j - t.p) / 2;
       let swishLabel = 'Kvitt';

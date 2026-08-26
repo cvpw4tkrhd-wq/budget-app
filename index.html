@@ -635,7 +635,9 @@ html[data-theme="dark"], body[data-theme="dark"] { background: #1a1917; }
   // v1.4.1 (2026-08-25) – Kalibrerade requesträknaren mot faktiskt antal
   //                        kvar på jsonbin.io (9905), visar nu "kvar"
   //                        istället för "använda".
-  const APP_VERSION = '1.4.1';
+  // v1.5.0 (2026-08-25) – Appen öppnas nu på senast visad månad/år (sparas
+  //                        lokalt på enheten) istället för alltid Jan 2026.
+  const APP_VERSION = '1.5.0';
   const APP_UPDATED = '2026-08-25';
   // ─────────────────────────────────────────────────────────────────────
 
@@ -883,6 +885,26 @@ html[data-theme="dark"], body[data-theme="dark"] { background: #1a1917; }
 
   initTheme();
 
+  // ── Kom ihåg senast visad månad/år (lokalt på den här enheten) ────────
+  const LAST_VIEW_KEY = 'budget-last-view';
+
+  function saveLastView() {
+    try { localStorage.setItem(LAST_VIEW_KEY, JSON.stringify({ year: state.year, month: state.month })); }
+    catch (e) { /* ignore */ }
+  }
+
+  function loadLastView() {
+    try {
+      const raw = localStorage.getItem(LAST_VIEW_KEY);
+      if (!raw) return null;
+      const v = JSON.parse(raw);
+      if ((v.year === 2026 || v.year === 2027) && Number.isInteger(v.month) && v.month >= 0 && v.month <= 11) {
+        return v;
+      }
+    } catch (e) { /* ignore */ }
+    return null;
+  }
+
   // ── Versionsfot ─────────────────────────────────────────────────────
   document.getElementById('app-footer').textContent =
     'Hushållsbudget v' + APP_VERSION + ' · uppdaterad ' + APP_UPDATED;
@@ -1067,6 +1089,7 @@ html[data-theme="dark"], body[data-theme="dark"] { background: #1a1917; }
     opts = opts || {};
     state.month = idx;
     renderMonthTabs();
+    saveLastView();
     if (!opts.skipFetch) {
       ledgerContainer.innerHTML = '<div class="loading">Laddar…</div>';
       swishCard.innerHTML = '';
@@ -1080,6 +1103,7 @@ html[data-theme="dark"], body[data-theme="dark"] { background: #1a1917; }
   async function switchYear(year) {
     state.year = year;
     document.querySelectorAll('#year-switch button').forEach(b => b.classList.toggle('active', b.dataset.year == year));
+    saveLastView();
     if (state.view === 'month') {
       await switchMonth(state.month);
     } else {
@@ -1154,8 +1178,14 @@ html[data-theme="dark"], body[data-theme="dark"] { background: #1a1917; }
   });
 
   // init
+  const last = loadLastView();
+  if (last) {
+    state.year = last.year;
+    state.month = last.month;
+    document.querySelectorAll('#year-switch button').forEach(b => b.classList.toggle('active', Number(b.dataset.year) === state.year));
+  }
   renderMonthTabs();
-  switchMonth(0);
+  switchMonth(state.month);
 })();
 </script>
 </body>

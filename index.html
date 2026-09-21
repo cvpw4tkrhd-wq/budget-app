@@ -271,6 +271,64 @@ html[data-theme="dark"], body[data-theme="dark"] { background: #1a1917; }
 #budget-root .export-btn:hover:not(:disabled) { background: #faf4e6; border-color: var(--gold); }
 #budget-root .export-btn:disabled { opacity: 0.6; cursor: default; }
 
+#budget-root .resor-card { padding: 0; }
+#budget-root .resor-head {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 14px 16px 10px;
+  border-bottom: 1px solid var(--rule);
+}
+#budget-root .resor-title {
+  font-family: 'Fraunces', serif;
+  font-weight: 600;
+  font-size: 15px;
+}
+#budget-root .resor-sub {
+  font-size: 11px;
+  color: var(--ink-soft);
+}
+#budget-root .resor-row {
+  display: flex;
+  gap: 14px;
+  padding: 14px 16px;
+  flex-wrap: wrap;
+}
+#budget-root .resor-field {
+  flex: 1;
+  min-width: 100px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+#budget-root .resor-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--ink-soft);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+#budget-root .resor-input { border-color: var(--rule-strong); }
+#budget-root .resor-input:focus { border-color: var(--gold); }
+#budget-root .resor-summa {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--gold);
+  padding: 7px 0;
+}
+#budget-root .resor-settle {
+  padding: 0 16px 10px;
+  font-weight: 600;
+  font-size: 13.5px;
+  color: var(--johanna);
+}
+#budget-root .resor-note {
+  padding: 0 16px 14px;
+  font-size: 11px;
+  color: var(--ink-soft);
+  line-height: 1.4;
+}
+
 #budget-root .row-del {
   border: none;
   background: transparent;
@@ -592,6 +650,10 @@ html[data-theme="dark"], body[data-theme="dark"] { background: #1a1917; }
   }
   #budget-root .cell-del { align-self: start; justify-self: end; }
   #budget-root .amt-label { display: block; }
+
+  /* Resor-card: stack the three fields instead of squeezing side by side */
+  #budget-root .resor-row { flex-direction: column; gap: 12px; }
+  #budget-root .resor-field { width: 100%; }
 }
 
 @supports (-webkit-touch-callout: none) {
@@ -689,7 +751,14 @@ html[data-theme="dark"], body[data-theme="dark"] { background: #1a1917; }
   //                        så appen inte tappar den om webbläsaren rensar
   //                        sitt lokala lagringsutrymme eller ni byter
   //                        enhet.
-  const APP_VERSION = '1.8.0';
+  // v1.9.0 (2026-08-26) – Ny fristående rad "Resor till Borås" (Resedagar ×
+  //                        Förbrukning = Summa). Ingår inte i 50/50-
+  //                        delningen/swishen ovan; visar istället en egen
+  //                        rad "Johanna swishar Patrik [halva summan]" samt
+  //                        hushållets totalsumma inklusive resor. Fälten
+  //                        förifylls aldrig från föregående månad. Med i
+  //                        Excel-exporten.
+  const APP_VERSION = '1.9.0';
   const APP_UPDATED = '2026-08-25';
   // ─────────────────────────────────────────────────────────────────────
 
@@ -774,6 +843,7 @@ html[data-theme="dark"], body[data-theme="dark"] { background: #1a1917; }
     return {
       fixed: FIXED_CATEGORIES.map(name => ({ name, johanna: '', patrik: '' })),
       extra: [],
+      resor: { resedagar: '', forbrukning: '' },
     };
   }
 
@@ -782,9 +852,11 @@ html[data-theme="dark"], body[data-theme="dark"] { background: #1a1917; }
     if (!raw.fixed || raw.fixed.length !== FIXED_CATEGORIES.length) {
       const d = defaultData();
       d.extra = raw.extra || [];
+      d.resor = raw.resor || d.resor;
       return d;
     }
     raw.extra = raw.extra || [];
+    raw.resor = raw.resor || { resedagar: '', forbrukning: '' };
     return raw;
   }
 
@@ -1023,17 +1095,21 @@ html[data-theme="dark"], body[data-theme="dark"] { background: #1a1917; }
       const wb = XLSX.utils.book_new();
 
       // Sammanställning
-      const summaryRows = [['Månad', 'Johanna', 'Patrik', 'Totalt', 'Swish']];
-      let yj = 0, yp = 0;
+      const summaryRows = [['Månad', 'Johanna', 'Patrik', 'Totalt', 'Swish', 'Resor till Borås (Summa)', 'Res-swish (Johanna → Patrik)']];
+      let yj = 0, yp = 0, yResor = 0;
       for (let i = 0; i < 12; i++) {
         const t = computeTotals(year, i);
-        yj += t.j; yp += t.p;
-        summaryRows.push([MONTHS[i], round2(t.j), round2(t.p), round2(t.total), swishLabelFor(t.j, t.p, false)]);
+        const rd = getMonthData(year, i);
+        const resorSumma = round2((Number(rd.resor.resedagar) || 0) * (Number(rd.resor.forbrukning) || 0));
+        yj += t.j; yp += t.p; yResor += resorSumma;
+        summaryRows.push([MONTHS[i], round2(t.j), round2(t.p), round2(t.total), swishLabelFor(t.j, t.p, false),
+          resorSumma, round2(resorSumma / 2)]);
       }
-      summaryRows.push(['Totalt ' + year, round2(yj), round2(yp), round2(yj + yp), swishLabelFor(yj, yp, false)]);
+      summaryRows.push(['Totalt ' + year, round2(yj), round2(yp), round2(yj + yp), swishLabelFor(yj, yp, false),
+        round2(yResor), round2(yResor / 2)]);
       const wsSummary = XLSX.utils.aoa_to_sheet(summaryRows);
-      wsSummary['!cols'] = [{ wch: 12 }, { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 28 }];
-      currencyFormatCols(wsSummary, [1, 2, 3]);
+      wsSummary['!cols'] = [{ wch: 12 }, { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 28 }, { wch: 22 }, { wch: 24 }];
+      currencyFormatCols(wsSummary, [1, 2, 3, 5, 6]);
       XLSX.utils.book_append_sheet(wb, wsSummary, 'Sammanställning');
 
       // En flik per månad
@@ -1060,9 +1136,21 @@ html[data-theme="dark"], body[data-theme="dark"] { background: #1a1917; }
         rows.push([]);
         rows.push(['Swish', swishLabelFor(t.j, t.p, true)]);
 
+        const dagar = Number(data.resor.resedagar) || 0;
+        const forbr = Number(data.resor.forbrukning) || 0;
+        const resorSumma = round2(dagar * forbr);
+        if (resorSumma > 0.004 || dagar || forbr) {
+          rows.push([]);
+          rows.push(['Resor till Borås (fristående)', 'Resedagar', 'Förbrukning']);
+          rows.push(['', dagar, round2(forbr)]);
+          rows.push(['Summa', resorSumma]);
+          rows.push(['Res-swish', 'Johanna swishar Patrik ' + fmt(resorSumma / 2)]);
+        }
+
         const ws = XLSX.utils.aoa_to_sheet(rows);
         ws['!cols'] = [{ wch: 26 }, { wch: 14 }, { wch: 14 }];
         currencyFormatCols(ws, [1, 2]);
+
 
         let baseName = MONTHS[i].slice(0, 3) + ' ' + year;
         let sheetName = baseName;
@@ -1285,7 +1373,97 @@ html[data-theme="dark"], body[data-theme="dark"] { background: #1a1917; }
     card.appendChild(totalsRowEl);
 
     ledgerContainer.appendChild(card);
+    ledgerContainer.appendChild(renderResorCard());
     renderTotalsRow();
+  }
+
+  // "Resor till Borås" — a standalone recurring row: Resedagar × Förbrukning
+  // = Summa. Neither field carries forward from the previous month. It does
+  // NOT feed into the main Johanna/Patrik split or the main swish above —
+  // it's Patrik's own travel cost, and Johanna owes him half of it directly.
+  // The combined figure (household total + resor) is shown for reference.
+  function renderResorCard() {
+    const card = document.createElement('div');
+    card.className = 'card resor-card';
+
+    const head = document.createElement('div');
+    head.className = 'resor-head';
+    head.innerHTML = '<span class="resor-title">Resor till Borås</span>' +
+      '<span class="resor-sub">Fristående — ingår inte i 50/50-delningen ovan</span>';
+    card.appendChild(head);
+
+    const row = document.createElement('div');
+    row.className = 'resor-row';
+
+    const summaVal = document.createElement('div');
+    summaVal.className = 'resor-summa mono';
+    const settleLine = document.createElement('div');
+    settleLine.className = 'resor-settle';
+    const note = document.createElement('div');
+    note.className = 'resor-note';
+
+    function refresh() {
+      const dagar = Number(state.data.resor.resedagar) || 0;
+      const forbr = Number(state.data.resor.forbrukning) || 0;
+      const summa = dagar * forbr;
+      summaVal.textContent = fmt(summa);
+
+      if (summa > 0.004) {
+        settleLine.textContent = 'Johanna swishar Patrik ' + fmt(summa / 2) + ' (halva summan)';
+        settleLine.style.display = '';
+        const t = computeTotals(state.year, state.month);
+        note.textContent = 'Ingår inte i totalsumman/swishen ovan, men i hushållets samlade utgift för månaden: ' +
+          fmt(t.total + summa) + ' (' + fmt(t.total) + ' + ' + fmt(summa) + ' resor).';
+      } else {
+        settleLine.textContent = '';
+        settleLine.style.display = 'none';
+        note.textContent = '';
+      }
+    }
+
+    function field(labelText, key, step) {
+      const wrap = document.createElement('div');
+      wrap.className = 'resor-field';
+      const label = document.createElement('span');
+      label.className = 'resor-label';
+      label.textContent = labelText;
+      const inp = document.createElement('input');
+      inp.type = 'number';
+      inp.inputMode = 'decimal';
+      inp.step = step;
+      inp.min = '0';
+      inp.placeholder = '0';
+      inp.className = 'amount-input resor-input';
+      inp.value = state.data.resor[key] === '' || state.data.resor[key] == null ? '' : state.data.resor[key];
+      inp.addEventListener('focus', () => inp.select());
+      inp.addEventListener('input', () => {
+        state.data.resor[key] = inp.value;
+        refresh();
+        scheduleSave();
+      });
+      wrap.appendChild(label);
+      wrap.appendChild(inp);
+      return wrap;
+    }
+
+    row.appendChild(field('Resedagar', 'resedagar', '1'));
+    row.appendChild(field('Förbrukning', 'forbrukning', '0.01'));
+
+    const summaWrap = document.createElement('div');
+    summaWrap.className = 'resor-field';
+    const summaLabel = document.createElement('span');
+    summaLabel.className = 'resor-label';
+    summaLabel.textContent = 'Summa';
+    summaWrap.appendChild(summaLabel);
+    summaWrap.appendChild(summaVal);
+    row.appendChild(summaWrap);
+
+    card.appendChild(row);
+    card.appendChild(settleLine);
+    card.appendChild(note);
+
+    refresh();
+    return card;
   }
 
   function renderSwish() {

@@ -760,7 +760,11 @@ html[data-theme="dark"], body[data-theme="dark"] { background: #1a1917; }
   //                        swish. Excel-exporten visar både budgetswish
   //                        exkl. resor och den slutgiltiga totalen inkl.
   //                        resor.
-  const APP_VERSION = '1.10.0';
+  // v1.10.1 (2026-08-26) – "Förbrukning" döpt om till "Kostnad T/R". Fixad
+  //                        bugg där månadsraden alltid scrollade tillbaka
+  //                        till januari — visar nu kvar vid senast valda
+  //                        månad.
+  const APP_VERSION = '1.10.1';
   const APP_UPDATED = '2026-08-26';
   // ─────────────────────────────────────────────────────────────────────
 
@@ -1149,7 +1153,7 @@ html[data-theme="dark"], body[data-theme="dark"] { background: #1a1917; }
         const resorSumma = round2(dagar * forbr);
         if (resorSumma > 0.004 || dagar || forbr) {
           rows.push([]);
-          rows.push(['Resor till Borås', 'Resedagar', 'Förbrukning']);
+          rows.push(['Resor till Borås', 'Resedagar', 'Kostnad T/R']);
           rows.push(['', dagar, round2(forbr)]);
           rows.push(['Summa', resorSumma]);
         }
@@ -1251,13 +1255,20 @@ html[data-theme="dark"], body[data-theme="dark"] { background: #1a1917; }
 
   function renderMonthTabs() {
     monthTabsEl.innerHTML = '';
+    let activeBtn = null;
     MONTHS.forEach((m, i) => {
       const btn = document.createElement('button');
       btn.className = 'month-pill' + (i === state.month ? ' active' : '');
       btn.textContent = m.slice(0, 3);
       btn.addEventListener('click', () => switchMonth(i));
       monthTabsEl.appendChild(btn);
+      if (i === state.month) activeBtn = btn;
     });
+    // Rebuilding the pills resets scroll to the left — bring the selected
+    // month back into view instead of always snapping back to January.
+    if (activeBtn) {
+      activeBtn.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    }
   }
 
   function rowTemplate(row, idx, isExtra) {
@@ -1401,7 +1412,7 @@ html[data-theme="dark"], body[data-theme="dark"] { background: #1a1917; }
     renderTotalsRow();
   }
 
-  // "Resor till Borås" — a standalone recurring row: Resedagar × Förbrukning
+  // "Resor till Borås" — a standalone recurring row: Resedagar × Kostnad T/R
   // = Summa. Neither field carries forward from the previous month. It does
   // NOT feed into the main 50/50 Johanna/Patrik split itself, but Johanna's
   // half IS added into the final swish total at the bottom of the page,
@@ -1470,7 +1481,7 @@ html[data-theme="dark"], body[data-theme="dark"] { background: #1a1917; }
     }
 
     row.appendChild(field('Resedagar', 'resedagar', '1'));
-    row.appendChild(field('Förbrukning', 'forbrukning', '0.01'));
+    row.appendChild(field('Kostnad T/R', 'forbrukning', '0.01'));
 
     const summaWrap = document.createElement('div');
     summaWrap.className = 'resor-field';

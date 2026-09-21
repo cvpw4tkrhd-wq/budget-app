@@ -752,14 +752,16 @@ html[data-theme="dark"], body[data-theme="dark"] { background: #1a1917; }
   //                        sitt lokala lagringsutrymme eller ni byter
   //                        enhet.
   // v1.9.0 (2026-08-26) – Ny fristående rad "Resor till Borås" (Resedagar ×
-  //                        Förbrukning = Summa). Ingår inte i 50/50-
-  //                        delningen/swishen ovan; visar istället en egen
-  //                        rad "Johanna swishar Patrik [halva summan]" samt
-  //                        hushållets totalsumma inklusive resor. Fälten
-  //                        förifylls aldrig från föregående månad. Med i
-  //                        Excel-exporten.
-  const APP_VERSION = '1.9.0';
-  const APP_UPDATED = '2026-08-25';
+  //                        Förbrukning = Summa). Fälten förifylls aldrig
+  //                        från föregående månad. Med i Excel-exporten.
+  // v1.10.0 (2026-08-26) – Resekostnaden räknas nu in i den totala swishen
+  //                        längst ner (efter den vanliga 50/50-uträkningen)
+  //                        istället för att visas som en egen separat
+  //                        swish. Excel-exporten visar både budgetswish
+  //                        exkl. resor och den slutgiltiga totalen inkl.
+  //                        resor.
+  const APP_VERSION = '1.10.0';
+  const APP_UPDATED = '2026-08-26';
   // ─────────────────────────────────────────────────────────────────────
 
   // ── jsonbin.io-inställningar ──────────────────────────────────────────
@@ -1086,6 +1088,12 @@ html[data-theme="dark"], body[data-theme="dark"] { background: #1a1917; }
     return arrowLong ? 'Ni är kvitt' : 'Kvitt';
   }
 
+  function diffLabel(diff, arrowLong) {
+    if (diff > 0.004) return (arrowLong ? 'Patrik swishar Johanna ' : 'P → J ') + fmt(diff);
+    if (diff < -0.004) return (arrowLong ? 'Johanna swishar Patrik ' : 'J → P ') + fmt(-diff);
+    return arrowLong ? 'Ni är kvitt' : 'Kvitt';
+  }
+
   async function exportYearToExcel(year) {
     exportBtn.disabled = true;
     exportBtn.textContent = 'Förbereder…';
@@ -1095,21 +1103,21 @@ html[data-theme="dark"], body[data-theme="dark"] { background: #1a1917; }
       const wb = XLSX.utils.book_new();
 
       // Sammanställning
-      const summaryRows = [['Månad', 'Johanna', 'Patrik', 'Totalt', 'Swish', 'Resor till Borås (Summa)', 'Res-swish (Johanna → Patrik)']];
-      let yj = 0, yp = 0, yResor = 0;
+      const summaryRows = [['Månad', 'Johanna', 'Patrik', 'Totalt', 'Budgetswish (exkl. resor)', 'Resor till Borås (Summa)', 'Totalt att swisha (inkl. resor)']];
+      let yj = 0, yp = 0, yResor = 0, yCombined = 0;
       for (let i = 0; i < 12; i++) {
         const t = computeTotals(year, i);
-        const rd = getMonthData(year, i);
-        const resorSumma = round2((Number(rd.resor.resedagar) || 0) * (Number(rd.resor.forbrukning) || 0));
-        yj += t.j; yp += t.p; yResor += resorSumma;
+        const resorSumma = round2(resorSummaFor(year, i));
+        const combined = combinedSwishDiff(year, i);
+        yj += t.j; yp += t.p; yResor += resorSumma; yCombined += combined;
         summaryRows.push([MONTHS[i], round2(t.j), round2(t.p), round2(t.total), swishLabelFor(t.j, t.p, false),
-          resorSumma, round2(resorSumma / 2)]);
+          resorSumma, diffLabel(combined, false)]);
       }
       summaryRows.push(['Totalt ' + year, round2(yj), round2(yp), round2(yj + yp), swishLabelFor(yj, yp, false),
-        round2(yResor), round2(yResor / 2)]);
+        round2(yResor), diffLabel(yCombined, false)]);
       const wsSummary = XLSX.utils.aoa_to_sheet(summaryRows);
-      wsSummary['!cols'] = [{ wch: 12 }, { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 28 }, { wch: 22 }, { wch: 24 }];
-      currencyFormatCols(wsSummary, [1, 2, 3, 5, 6]);
+      wsSummary['!cols'] = [{ wch: 12 }, { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 26 }, { wch: 22 }, { wch: 28 }];
+      currencyFormatCols(wsSummary, [1, 2, 3, 5]);
       XLSX.utils.book_append_sheet(wb, wsSummary, 'Sammanställning');
 
       // En flik per månad
@@ -1134,18 +1142,19 @@ html[data-theme="dark"], body[data-theme="dark"] { background: #1a1917; }
         rows.push([]);
         rows.push(['Totalt', round2(t.j), round2(t.p)]);
         rows.push([]);
-        rows.push(['Swish', swishLabelFor(t.j, t.p, true)]);
+        rows.push(['Budgetswish (exkl. resor)', swishLabelFor(t.j, t.p, true)]);
 
         const dagar = Number(data.resor.resedagar) || 0;
         const forbr = Number(data.resor.forbrukning) || 0;
         const resorSumma = round2(dagar * forbr);
         if (resorSumma > 0.004 || dagar || forbr) {
           rows.push([]);
-          rows.push(['Resor till Borås (fristående)', 'Resedagar', 'Förbrukning']);
+          rows.push(['Resor till Borås', 'Resedagar', 'Förbrukning']);
           rows.push(['', dagar, round2(forbr)]);
           rows.push(['Summa', resorSumma]);
-          rows.push(['Res-swish', 'Johanna swishar Patrik ' + fmt(resorSumma / 2)]);
         }
+        rows.push([]);
+        rows.push(['Totalt att swisha (budget + resor)', diffLabel(combinedSwishDiff(year, i), true)]);
 
         const ws = XLSX.utils.aoa_to_sheet(rows);
         ws['!cols'] = [{ wch: 26 }, { wch: 14 }, { wch: 14 }];
@@ -1223,6 +1232,21 @@ html[data-theme="dark"], body[data-theme="dark"] { background: #1a1917; }
       p += Number(row.patrik) || 0;
     });
     return { j, p, total: j + p };
+  }
+
+  function resorSummaFor(year, monthIdx) {
+    const data = getMonthData(year, monthIdx);
+    return (Number(data.resor.resedagar) || 0) * (Number(data.resor.forbrukning) || 0);
+  }
+
+  // Final settlement for a month: the regular 50/50 budget swish, with
+  // Johanna's half of the Resor-till-Borås cost added on top afterwards.
+  // Positive => Patrik swishar Johanna. Negative => Johanna swishar Patrik.
+  function combinedSwishDiff(year, monthIdx) {
+    const t = computeTotals(year, monthIdx);
+    const mainDiff = (t.j - t.p) / 2;
+    const resor = resorSummaFor(year, monthIdx);
+    return mainDiff - resor / 2;
   }
 
   function renderMonthTabs() {
@@ -1379,9 +1403,9 @@ html[data-theme="dark"], body[data-theme="dark"] { background: #1a1917; }
 
   // "Resor till Borås" — a standalone recurring row: Resedagar × Förbrukning
   // = Summa. Neither field carries forward from the previous month. It does
-  // NOT feed into the main Johanna/Patrik split or the main swish above —
-  // it's Patrik's own travel cost, and Johanna owes him half of it directly.
-  // The combined figure (household total + resor) is shown for reference.
+  // NOT feed into the main 50/50 Johanna/Patrik split itself, but Johanna's
+  // half IS added into the final swish total at the bottom of the page,
+  // after the regular budget swish has been worked out.
   function renderResorCard() {
     const card = document.createElement('div');
     card.className = 'card resor-card';
@@ -1389,7 +1413,7 @@ html[data-theme="dark"], body[data-theme="dark"] { background: #1a1917; }
     const head = document.createElement('div');
     head.className = 'resor-head';
     head.innerHTML = '<span class="resor-title">Resor till Borås</span>' +
-      '<span class="resor-sub">Fristående — ingår inte i 50/50-delningen ovan</span>';
+      '<span class="resor-sub">Utanför 50/50-delningen — läggs till den totala swishen längst ner</span>';
     card.appendChild(head);
 
     const row = document.createElement('div');
@@ -1409,11 +1433,9 @@ html[data-theme="dark"], body[data-theme="dark"] { background: #1a1917; }
       summaVal.textContent = fmt(summa);
 
       if (summa > 0.004) {
-        settleLine.textContent = 'Johanna swishar Patrik ' + fmt(summa / 2) + ' (halva summan)';
+        settleLine.textContent = 'Johannas andel: ' + fmt(summa / 2) + ' — ingår i totala swishen längst ner';
         settleLine.style.display = '';
-        const t = computeTotals(state.year, state.month);
-        note.textContent = 'Ingår inte i totalsumman/swishen ovan, men i hushållets samlade utgift för månaden: ' +
-          fmt(t.total + summa) + ' (' + fmt(t.total) + ' + ' + fmt(summa) + ' resor).';
+        note.textContent = 'Hushållets samlade utgift för månaden inkl. resor: ' + fmt(computeTotals(state.year, state.month).total + summa) + '.';
       } else {
         settleLine.textContent = '';
         settleLine.style.display = 'none';
@@ -1439,6 +1461,7 @@ html[data-theme="dark"], body[data-theme="dark"] { background: #1a1917; }
       inp.addEventListener('input', () => {
         state.data.resor[key] = inp.value;
         refresh();
+        renderSwish();
         scheduleSave();
       });
       wrap.appendChild(label);
@@ -1468,7 +1491,8 @@ html[data-theme="dark"], body[data-theme="dark"] { background: #1a1917; }
 
   function renderSwish() {
     const t = computeTotals(state.year, state.month);
-    const diff = (t.j - t.p) / 2; // positive -> Patrik owes Johanna
+    const resor = resorSummaFor(state.year, state.month);
+    const diff = combinedSwishDiff(state.year, state.month); // positive -> Patrik owes Johanna
     const each = t.total / 2;
     let payer = null, receiver = null, amount = 0;
     if (diff > 0.004) { payer = 'p'; receiver = 'j'; amount = diff; }
@@ -1499,15 +1523,19 @@ html[data-theme="dark"], body[data-theme="dark"] { background: #1a1917; }
     } else {
       const payerName = payer === 'j' ? 'Johanna' : 'Patrik';
       const receiverName = receiver === 'j' ? 'Johanna' : 'Patrik';
+      const sub = resor > 0.004
+        ? 'Budget delad 50/50, plus Johannas halva av resorna till Borås.'
+        : 'Så att båda landar på samma andel av totalen.';
       textHtml =
         '<p class="swish-text">' + payerName + ' swishar ' + receiverName + ' <span class="amt mono">' + fmt(amount) + '</span></p>' +
-        '<p class="swish-sub">Så att båda landar på samma andel av totalen.</p>';
+        '<p class="swish-sub">' + sub + '</p>';
     }
 
     const metaHtml =
       '<div class="swish-meta">' +
         '<span>Totalt: <b>' + fmt(t.total) + '</b></span>' +
         '<span>Vardera: <b>' + fmt(each) + '</b></span>' +
+        (resor > 0.004 ? '<span>Resor: <b>' + fmt(resor) + '</b></span>' : '') +
       '</div>';
 
     swishCard.innerHTML = flowHtml + textHtml + metaHtml;

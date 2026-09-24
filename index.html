@@ -371,6 +371,19 @@ html[data-theme="dark"], body[data-theme="dark"] { background: #1a1917; }
 }
 #budget-root .totals-row .col-j { color: var(--johanna); text-align: right; }
 #budget-root .totals-row .col-p { color: var(--patrik); text-align: right; }
+#budget-root .totals-note {
+  font-weight: 700;
+  color: var(--gold);
+  cursor: help;
+}
+#budget-root .totals-footnote {
+  grid-column: 1 / -1;
+  font-weight: 400;
+  font-size: 10.5px;
+  color: var(--ink-soft);
+  text-align: right;
+  margin-top: 2px;
+}
 
 /* Swish summary */
 #budget-root .swish-card {
@@ -450,9 +463,14 @@ html[data-theme="dark"], body[data-theme="dark"] { background: #1a1917; }
   font-family: 'Fraunces', serif;
   font-size: 19px;
   font-weight: 600;
-  margin: 0 0 3px;
+  margin: 0 0 2px;
 }
-#budget-root .swish-text .amt { color: var(--gold); }
+#budget-root .swish-text .amt {
+  display: block;
+  color: var(--gold);
+  font-size: 26px;
+  margin-top: 4px;
+}
 #budget-root .swish-sub {
   color: var(--ink-soft);
   font-size: 12.5px;
@@ -767,7 +785,12 @@ html[data-theme="dark"], body[data-theme="dark"] { background: #1a1917; }
   // v1.10.2 (2026-08-26) – Fixad bugg där swish-pilen pekade åt fel håll
   //                        när Johanna skulle swisha Patrik (pilen
   //                        speglade betalaren istället för mottagaren).
-  const APP_VERSION = '1.10.2';
+  // v1.11.0 (2026-08-26) – Swish-beloppet radbryts nu till en egen,
+  //                        centrerad rad under "X swishar Y". Totalt-raden
+  //                        i huvudledgern visar nu vars och ens faktiska
+  //                        totala utlägg — Patriks summa inkluderar nu
+  //                        resor till Borås (märkt med * och fotnot).
+  const APP_VERSION = '1.11.0';
   const APP_UPDATED = '2026-08-26';
   // ─────────────────────────────────────────────────────────────────────
 
@@ -1376,11 +1399,15 @@ html[data-theme="dark"], body[data-theme="dark"] { background: #1a1917; }
   function renderTotalsRow() {
     if (!totalsRowEl) return;
     const t = computeTotals(state.year, state.month);
+    const resor = resorSummaFor(state.year, state.month);
+    const patrikTotal = t.p + resor;
+    const patrikNote = resor > 0.004 ? ' <span class="totals-note" title="Inkluderar resor till Borås: ' + fmt(resor) + '">*</span>' : '';
     totalsRowEl.innerHTML =
       '<div>Totalt</div>' +
       '<div class="col-j mono">' + fmt(t.j) + '</div>' +
-      '<div class="col-p mono">' + fmt(t.p) + '</div>' +
-      '<div></div>';
+      '<div class="col-p mono">' + fmt(patrikTotal) + patrikNote + '</div>' +
+      '<div></div>' +
+      (resor > 0.004 ? '<div class="totals-footnote">* Patriks totalsumma inkluderar resor till Borås (' + fmt(resor) + ')</div>' : '');
   }
 
   function renderLedger() {
@@ -1476,6 +1503,7 @@ html[data-theme="dark"], body[data-theme="dark"] { background: #1a1917; }
         state.data.resor[key] = inp.value;
         refresh();
         renderSwish();
+        renderTotalsRow();
         scheduleSave();
       });
       wrap.appendChild(label);

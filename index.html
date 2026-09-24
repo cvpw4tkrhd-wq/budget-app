@@ -764,7 +764,10 @@ html[data-theme="dark"], body[data-theme="dark"] { background: #1a1917; }
   //                        bugg där månadsraden alltid scrollade tillbaka
   //                        till januari — visar nu kvar vid senast valda
   //                        månad.
-  const APP_VERSION = '1.10.1';
+  // v1.10.2 (2026-08-26) – Fixad bugg där swish-pilen pekade åt fel håll
+  //                        när Johanna skulle swisha Patrik (pilen
+  //                        speglade betalaren istället för mottagaren).
+  const APP_VERSION = '1.10.2';
   const APP_UPDATED = '2026-08-26';
   // ─────────────────────────────────────────────────────────────────────
 
@@ -1509,7 +1512,10 @@ html[data-theme="dark"], body[data-theme="dark"] { background: #1a1917; }
     if (diff > 0.004) { payer = 'p'; receiver = 'j'; amount = diff; }
     else if (diff < -0.004) { payer = 'j'; receiver = 'p'; amount = -diff; }
 
-    const rev = payer === 'j';
+    // J is always on the left, P always on the right. The arrowhead must
+    // point at the receiver (where the money goes), not the payer — so
+    // this has to key off `receiver`, not `payer`.
+    const rev = receiver === 'j';
     const trackClass = 'arrow-track' + (rev ? ' rev' : '');
     const active = payer !== null;
 

@@ -790,8 +790,12 @@ html[data-theme="dark"], body[data-theme="dark"] { background: #1a1917; }
   //                        i huvudledgern visar nu vars och ens faktiska
   //                        totala utlägg — Patriks summa inkluderar nu
   //                        resor till Borås (märkt med * och fotnot).
-  const APP_VERSION = '1.11.0';
-  const APP_UPDATED = '2026-08-26';
+  // v1.12.0 (2026-10-20) – Nytt kort "Fria swishbelopp": två fria fält
+  //                        (Johanna swishar Patrik / Patrik swishar Johanna)
+  //                        som läggs till slutsumman för vem som ska swisha
+  //                        vem. Med i Excel-exporten.
+  const APP_VERSION = '1.12.0';
+  const APP_UPDATED = '2026-10-20';
   // ─────────────────────────────────────────────────────────────────────
 
   // ── jsonbin.io-inställningar ──────────────────────────────────────────
@@ -876,6 +880,7 @@ html[data-theme="dark"], body[data-theme="dark"] { background: #1a1917; }
       fixed: FIXED_CATEGORIES.map(name => ({ name, johanna: '', patrik: '' })),
       extra: [],
       resor: { resedagar: '', forbrukning: '' },
+      swishExtra: { jToP: '', pToJ: '' },
     };
   }
 
@@ -885,10 +890,12 @@ html[data-theme="dark"], body[data-theme="dark"] { background: #1a1917; }
       const d = defaultData();
       d.extra = raw.extra || [];
       d.resor = raw.resor || d.resor;
+      d.swishExtra = raw.swishExtra || d.swishExtra;
       return d;
     }
     raw.extra = raw.extra || [];
     raw.resor = raw.resor || { resedagar: '', forbrukning: '' };
+    raw.swishExtra = raw.swishExtra || { jToP: '', pToJ: '' };
     return raw;
   }
 
@@ -1133,7 +1140,7 @@ html[data-theme="dark"], body[data-theme="dark"] { background: #1a1917; }
       const wb = XLSX.utils.book_new();
 
       // Sammanställning
-      const summaryRows = [['Månad', 'Johanna', 'Patrik', 'Totalt', 'Budgetswish (exkl. resor)', 'Resor till Borås (Summa)', 'Totalt att swisha (inkl. resor)']];
+      const summaryRows = [['Månad', 'Johanna', 'Patrik', 'Totalt', 'Budgetswish (exkl. resor)', 'Resor till Borås (Summa)', 'Totalt att swisha (inkl. resor och fria belopp)']];
       let yj = 0, yp = 0, yResor = 0, yCombined = 0;
       for (let i = 0; i < 12; i++) {
         const t = computeTotals(year, i);
@@ -1183,8 +1190,15 @@ html[data-theme="dark"], body[data-theme="dark"] { background: #1a1917; }
           rows.push(['', dagar, round2(forbr)]);
           rows.push(['Summa', resorSumma]);
         }
+        const freeX = freeSwishFor(year, i);
+        if (freeX.jToP > 0.004 || freeX.pToJ > 0.004) {
+          rows.push([]);
+          rows.push(['Fria swishbelopp', 'Belopp']);
+          rows.push(['Johanna swishar Patrik', round2(freeX.jToP)]);
+          rows.push(['Patrik swishar Johanna', round2(freeX.pToJ)]);
+        }
         rows.push([]);
-        rows.push(['Totalt att swisha (budget + resor)', diffLabel(combinedSwishDiff(year, i), true)]);
+        rows.push(['Totalt att swisha (budget + resor + fria belopp)', diffLabel(combinedSwishDiff(year, i), true)]);
 
         const ws = XLSX.utils.aoa_to_sheet(rows);
         ws['!cols'] = [{ wch: 26 }, { wch: 14 }, { wch: 14 }];
@@ -1272,11 +1286,19 @@ html[data-theme="dark"], body[data-theme="dark"] { background: #1a1917; }
   // Final settlement for a month: the regular 50/50 budget swish, with
   // Johanna's half of the Resor-till-Borås cost added on top afterwards.
   // Positive => Patrik swishar Johanna. Negative => Johanna swishar Patrik.
+  function freeSwishFor(year, monthIdx) {
+    const d = getMonthData(year, monthIdx).swishExtra;
+    return { jToP: Number(d.jToP) || 0, pToJ: Number(d.pToJ) || 0 };
+  }
+
   function combinedSwishDiff(year, monthIdx) {
     const t = computeTotals(year, monthIdx);
     const mainDiff = (t.j - t.p) / 2;
     const resor = resorSummaFor(year, monthIdx);
-    return mainDiff - resor / 2;
+    const free = freeSwishFor(year, monthIdx);
+    // Free amounts: Johanna→Patrik makes Johanna owe more (negative),
+    // Patrik→Johanna makes Patrik owe more (positive).
+    return mainDiff - resor / 2 - free.jToP + free.pToJ;
   }
 
   function renderMonthTabs() {
@@ -1439,7 +1461,56 @@ html[data-theme="dark"], body[data-theme="dark"] { background: #1a1917; }
 
     ledgerContainer.appendChild(card);
     ledgerContainer.appendChild(renderResorCard());
+    ledgerContainer.appendChild(renderFriSwishCard());
     renderTotalsRow();
+  }
+
+  // "Fria swishbelopp" — free-form amounts that are added on top of the
+  // final settlement. "Johanna swishar Patrik" makes Johanna owe more,
+  // "Patrik swishar Johanna" makes Patrik owe more. Never carried forward.
+  function renderFriSwishCard() {
+    const card = document.createElement('div');
+    card.className = 'card resor-card';
+
+    const head = document.createElement('div');
+    head.className = 'resor-head';
+    head.innerHTML = '<span class="resor-title">Fria swishbelopp</span>' +
+      '<span class="resor-sub">Läggs till slutsumman längst ner</span>';
+    card.appendChild(head);
+
+    const row = document.createElement('div');
+    row.className = 'resor-row';
+
+    function field(labelText, key) {
+      const wrap = document.createElement('div');
+      wrap.className = 'resor-field';
+      const label = document.createElement('span');
+      label.className = 'resor-label';
+      label.textContent = labelText;
+      const inp = document.createElement('input');
+      inp.type = 'number';
+      inp.inputMode = 'decimal';
+      inp.step = '0.01';
+      inp.min = '0';
+      inp.placeholder = '0';
+      inp.className = 'amount-input resor-input';
+      const v = state.data.swishExtra[key];
+      inp.value = v === '' || v == null ? '' : v;
+      inp.addEventListener('focus', () => inp.select());
+      inp.addEventListener('input', () => {
+        state.data.swishExtra[key] = inp.value;
+        renderSwish();
+        scheduleSave();
+      });
+      wrap.appendChild(label);
+      wrap.appendChild(inp);
+      return wrap;
+    }
+
+    row.appendChild(field('Johanna swishar Patrik', 'jToP'));
+    row.appendChild(field('Patrik swishar Johanna', 'pToJ'));
+    card.appendChild(row);
+    return card;
   }
 
   // "Resor till Borås" — a standalone recurring row: Resedagar × Kostnad T/R
@@ -1568,8 +1639,12 @@ html[data-theme="dark"], body[data-theme="dark"] { background: #1a1917; }
     } else {
       const payerName = payer === 'j' ? 'Johanna' : 'Patrik';
       const receiverName = receiver === 'j' ? 'Johanna' : 'Patrik';
-      const sub = resor > 0.004
-        ? 'Budget delad 50/50, plus Johannas halva av resorna till Borås.'
+      const free = freeSwishFor(state.year, state.month);
+      const extras = [];
+      if (resor > 0.004) extras.push('Johannas halva av resorna till Borås');
+      if (free.jToP > 0.004 || free.pToJ > 0.004) extras.push('fria swishbelopp');
+      const sub = extras.length
+        ? 'Budget delad 50/50, plus ' + extras.join(' och ') + '.'
         : 'Så att båda landar på samma andel av totalen.';
       textHtml =
         '<p class="swish-text">' + payerName + ' swishar ' + receiverName + ' <span class="amt mono">' + fmt(amount) + '</span></p>' +
